@@ -1,0 +1,166 @@
+import { axiosInstance } from '../config/axios.config';
+import type {
+  Bloque,
+  Legislador,
+  Expediente,
+  SearchExpedientesParams,
+  FechaProyectos,
+  LegislaturaStats,
+  ApiResponse,
+} from '../types/legislatura.types';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+// ─── Bloques ─────────────────────────────────────
+
+export async function getBloques(): Promise<Bloque[]> {
+  const { data } = await axiosInstance.get<ApiResponse<Bloque[]>>('/legislatura/bloques');
+  return data.data;
+}
+
+export async function getBloquesWithCounts(): Promise<Bloque[]> {
+  const { data } = await axiosInstance.get<ApiResponse<Bloque[]>>('/legislatura/bloques/counts');
+  return data.data;
+}
+
+// ─── Legisladores ────────────────────────────────
+
+export async function getLegisladores(bloqueId?: number): Promise<Legislador[]> {
+  const params = bloqueId ? { bloqueId } : {};
+  const { data } = await axiosInstance.get<ApiResponse<Legislador[]>>('/legislatura/legisladores', { params });
+  return data.data;
+}
+
+export async function getLegisladorById(id: number): Promise<Legislador> {
+  const { data } = await axiosInstance.get<ApiResponse<Legislador>>(`/legislatura/legisladores/${id}`);
+  return data.data;
+}
+
+// ─── Expedientes ─────────────────────────────────
+
+export async function searchExpedientes(
+  params: SearchExpedientesParams = {},
+): Promise<{ data: Expediente[]; total: number }> {
+  const { data } = await axiosInstance.get('/legislatura/expedientes', { params });
+  return { data: data.expedientes, total: data.total };
+}
+
+export async function getExpedienteById(id: number): Promise<Expediente> {
+  const { data } = await axiosInstance.get<ApiResponse<Expediente>>(`/legislatura/expedientes/${id}`);
+  return data.data;
+}
+
+export async function getExpedientesGrouped(days: number = 30): Promise<FechaProyectos[]> {
+  const { data } = await axiosInstance.get<ApiResponse<FechaProyectos[]>>('/legislatura/expedientes/grouped', {
+    params: { days },
+  });
+  return data.data;
+}
+
+export async function getExpedientesByLegislador(legisladorId: number): Promise<Expediente[]> {
+  const { data } = await axiosInstance.get<ApiResponse<Expediente[]>>(
+    `/legislatura/legisladores/${legisladorId}/expedientes`,
+  );
+  return data.data;
+}
+
+// ─── Stats ───────────────────────────────────────
+
+export async function getStats(): Promise<LegislaturaStats> {
+  const { data } = await axiosInstance.get<ApiResponse<LegislaturaStats>>('/legislatura/stats');
+  return data.data;
+}
+
+// ─── Chat (SSE streaming) ────────────────────────
+
+export interface ChatStreamCallbacks {
+  onToken: (token: string) => void;
+  onDone: () => void;
+  onError: (error: Error) => void;
+}
+
+export async function sendChatMessage(
+  conversationId: string,
+  text: string,
+  callbacks: ChatStreamCallbacks,
+): Promise<{ conversationId: string }> {
+  const token = localStorage.getItem('accessToken');
+  
+  try {
+    const response = await fetch(
+      `${API_URL}/chat/conversations/${conversationId}/messages/stream`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ text }),
+      },
+    );
+
+    if (!response.ok) {
+      let errorMessage = `Error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch {
+        errorMessage = `Chat request failed: ${response.status} ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter((l) => l.trim());
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const payload = line.slice(6);
+            if (payload === '[DONE]') {
+              callbacks.onDone();
+              return { conversationId };
+            }
+            try {
+              const parsed = JSON.parse(payload);
+              if (parsed.error) {
+                callbacks.onError(new Error(parsed.error));
+                return { conversationId };
+              }
+              callbacks.onToken(parsed.chunk ?? payload);
+            } catch {
+              callbacks.onToken(payload);
+            }
+          }
+        }
+      }
+      callbacks.onDone();
+    } catch (error) {
+      callbacks.onError(error as Error);
+    }
+    return { conversationId };
+  } catch (error) {
+    console.error('sendChatMessage error:', error);
+    throw error;
+  }
+}
+
+// ─── Conversations ───────────────────────────────
+
+export async function createConversation(): Promise<{ _id: string }> {
+  const { data } = await axiosInstance.post('/chat/conversations', {
+    title: 'Consulta Legislatura',
+  });
+  return data;
+}
+
+export async function getConversations(): Promise<any[]> {
+  const { data } = await axiosInstance.get('/chat/conversations');
+  return data;
+}

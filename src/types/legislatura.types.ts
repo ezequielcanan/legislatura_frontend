@@ -1,92 +1,137 @@
-// ===== Enums =====
+// ===== Backend-aligned types for Legislatura CABA =====
 
-export type CategoriaProyecto =
-  | 'Ley'
-  | 'Resolución'
-  | 'Declaración'
-  | 'Decreto'
-  | 'Comunicación'
-  | 'Pedido de Informes';
+// ===== Bloques (Parties) =====
 
-export type EstadoProyecto =
-  | 'Ingresado'
-  | 'En Comisión'
-  | 'Aprobado en Comisión'
-  | 'Media Sanción'
-  | 'Aprobado'
-  | 'Rechazado'
-  | 'Archivado'
-  | 'Retirado';
-
-// ===== Interfaces =====
-
-export interface Partido {
-  id: string;
+export interface Bloque {
+  _id: string;
+  bloqueId: number;
   nombre: string;
-  sigla: string;
-  color: string; // hex color for UI
-  logo?: string;
-  descripcion: string;
-  fundado: number;
-  cantidadLegisladores: number;
+  url: string;
+  logo: string;
+  logoS: string;
+  logoM: string;
+  cantidad: number;
+  color: string;
+  percent: number;
+}
+
+// ===== Legisladores =====
+
+export interface Comision {
+  comisionId: number;
+  nombre: string;
+  cargo: string;
 }
 
 export interface Legislador {
-  id: string;
-  nombre: string;
+  _id: string;
+  legisladorId: number;
   apellido: string;
-  foto: string;
-  partidoId: string;
-  partido: Partido;
+  nombre: string;
+  urlLegislador: string;
+  sexo: string;
   bloque: string;
-  email?: string;
-  despacho: string;
-  fechaNacimiento: string; // ISO date
-  mandatoInicio: string; // ISO date
-  mandatoFin: string; // ISO date
-  comisiones: string[];
-  proyectosPresentados: number;
+  urlBloque: string;
+  bloqueId: number;
+  bloqueColor: string;
+  foto: string;
+  fotoS: string;
+  fotoM: string;
+  bloqueLogo: string;
+  bloqueLogoS: string;
+  bloqueLogoM: string;
+  idAutor: number;
+  fecha_inicio_mandato: string;
+  fecha_fin_mandato: string;
+  cargoRecinto: string;
+  idCargoRecinto: number;
+  fechaNacimiento: string;
+  telefono: string;
+  oficina: string;
+  comisiones?: Comision[];
 }
 
-export interface ProyectoLey {
-  id: string;
-  expediente: string; // e.g. "0001-D-2026"
+// ===== Expedientes (Projects) =====
+
+export type ExpedienteStatus = 'pending' | 'downloading' | 'summarizing' | 'embedding' | 'completed' | 'failed';
+
+export type CategoriaProyecto = string;
+export type EstadoProyecto = string;
+
+export interface ExpedienteAutor {
+  legisladorId: number;
+  nombre: string;
+  apellido: string;
+}
+
+export interface LibroExpediente {
+  idDoc: number;
+  nombre: string;
+  url: string;
+  tipo: string;
+}
+
+export interface Expediente {
+  _id: string;
+  expedienteId: number;
+  numero: string;
   titulo: string;
   sumario: string;
-  resumenIA: string; // AI-generated summary
-  textoCompleto: string;
-  categoria: CategoriaProyecto;
-  estado: EstadoProyecto;
-  fechaIngreso: string; // ISO date
-  fechaUltimaModificacion: string;
-  autores: Legislador[];
-  coautores: Legislador[];
-  adherentes: Legislador[];
-  partidosInvolucrados: Partido[];
-  comisiones: string[];
-  giros: string[];
+  tipo: string;
+  tipoId: number;
+  estado: string;
+  estadoId: number;
   ubicacion: string;
-  origen: string;
-  proyectoDe: string;
-  etiquetas: string[];
+  ubicacionId: number;
+  fechaIngreso: string;
+  fechaIngresoDate: string;
+  anioParlamentario: string;
+  autores: ExpedienteAutor[];
+  pdfText?: string;
+  aiSummary?: string;
+  aiTags?: string[];
+  aiCategory?: string;
+  libros?: LibroExpediente[];
+  votaciones?: any;
+  status: ExpedienteStatus;
+  embeddingCount?: number;
+  processedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ===== Search & Filters =====
+
+export interface SearchExpedientesParams {
+  query?: string;
+  tipo?: string;
+  estado?: string;
+  bloqueId?: number;
+  legisladorId?: number;
+  tag?: string;
+  category?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+  skip?: number;
 }
 
 export interface FechaProyectos {
-  fecha: string; // ISO date
-  proyectos: ProyectoLey[];
+  fecha: string;
+  proyectos: Expediente[];
   totalProyectos: number;
 }
 
-// ===== Filters =====
+// ===== Stats =====
 
-export interface FiltrosProyecto {
-  busqueda: string;
-  categoria: CategoriaProyecto | 'Todas';
-  estado: EstadoProyecto | 'Todos';
-  partidoId: string | 'Todos';
-  legisladorId: string | 'Todos';
-  fechaDesde: string;
-  fechaHasta: string;
+export interface LegislaturaStats {
+  totalExpedientes: number;
+  completedExpedientes: number;
+  failedExpedientes: number;
+  pendingExpedientes: number;
+  totalLegisladores: number;
+  totalBloques: number;
+  totalEmbeddings: number;
 }
 
 // ===== Chat =====
@@ -96,12 +141,17 @@ export interface MensajeChat {
   rol: 'usuario' | 'asistente';
   contenido: string;
   timestamp: string;
-  proyectosReferenciados?: ProyectoLey[];
+  expedientesReferenciados?: Expediente[];
 }
 
 export interface ConversacionChat {
   id: string;
   mensajes: MensajeChat[];
-  fechaContextoDesde: string;
-  fechaContextoHasta: string;
+}
+
+// ===== API Responses =====
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
 }

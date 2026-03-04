@@ -34,7 +34,7 @@ export function Navbar() {
       animate={{ y: 0, opacity: 1 }}
       className="sticky top-0 z-50 backdrop-blur-lg bg-background/80 border-b border-border/50 shadow-lg"
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 xl:px-8">
         <div className="flex items-center justify-between h-16">
           
           {/* Logo y Título */}
@@ -51,7 +51,7 @@ export function Navbar() {
           </div>
 
           {/* Desktop Menu (Hidden en mobile) */}
-          <div className="hidden lg:flex items-center gap-1">
+          <div className="hidden xl:flex items-center gap-1">
             {navLinks.map(link => (
               <Link
                 key={link.to}
@@ -79,7 +79,7 @@ export function Navbar() {
               
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20">
                 <User className="w-4 h-4 text-violet-600" />
-                <span className="text-sm hidden lg:block">{user.email}</span>
+                <span className="text-sm hidden xl:block">{user.email}</span>
               </div>
               
               <button onClick={handleLogout} className="p-2 rounded-lg hover:bg-destructive/10 hover:text-destructive">
@@ -89,7 +89,7 @@ export function Navbar() {
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="lg:hidden flex items-center">
+          <div className="xl:hidden flex items-center">
             <button 
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="p-2 rounded-lg hover:bg-accent"
@@ -107,7 +107,7 @@ export function Navbar() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="lg:hidden border-t border-border/50 bg-background/95 backdrop-blur-xl overflow-hidden"
+            className="xl:hidden border-t border-border/50 bg-background/95 backdrop-blur-xl overflow-hidden"
           >
             <div className="px-4 pt-2 pb-6 space-y-2">
               {navLinks.map(link => (

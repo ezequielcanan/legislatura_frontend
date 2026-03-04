@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
@@ -7,10 +7,32 @@ import {
 import { Navbar } from '../components/layout/Navbar';
 import Title from '../components/layout/Title';
 import Container from '../components/containers/Container';
-import { proyectos, legisladores, partidos, getProyectosPorFecha } from '../data/mockData';
+import { getStats, getExpedientesGrouped } from '../services/legislatura.service';
+import type { LegislaturaStats, FechaProyectos } from '../types/legislatura.types';
 
 export function Home() {
   const navigate = useNavigate();
+  const [stats, setStats] = useState<LegislaturaStats | null>(null);
+  const [ultimosProyectos, setUltimosProyectos] = useState<FechaProyectos | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [statsData, grouped] = await Promise.all([
+          getStats().catch(() => null),
+          getExpedientesGrouped(7).catch(() => []),
+        ]);
+        setStats(statsData);
+        if (grouped.length > 0) setUltimosProyectos(grouped[0]);
+      } catch (err) {
+        console.error('Error loading home data:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
 
   const features = [
     {
@@ -43,13 +65,11 @@ export function Home() {
     },
   ];
 
-  const stats = [
-    { label: 'Proyectos', value: proyectos.length, icon: FileText, gradient: 'from-violet-600 to-purple-600' },
-    { label: 'Legisladores', value: legisladores.length, icon: Users, gradient: 'from-blue-600 to-cyan-600' },
-    { label: 'Partidos', value: partidos.length, icon: Building2, gradient: 'from-fuchsia-600 to-pink-600' },
+  const statsCards = [
+    { label: 'Proyectos', value: stats?.totalExpedientes ?? 0, icon: FileText, gradient: 'from-violet-600 to-purple-600' },
+    { label: 'Legisladores', value: stats?.totalLegisladores ?? 0, icon: Users, gradient: 'from-blue-600 to-cyan-600' },
+    { label: 'Bloques', value: stats?.totalBloques ?? 0, icon: Building2, gradient: 'from-fuchsia-600 to-pink-600' },
   ];
-
-  const ultimosProyectos = getProyectosPorFecha()[0];
 
   return (
     <Container>
@@ -88,7 +108,7 @@ export function Home() {
           transition={{ delay: 0.4, duration: 0.8 }}
           className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16"
         >
-          {stats.map((stat, index) => (
+          {statsCards.map((stat, index) => (
             <motion.div
               key={stat.label}
               initial={{ opacity: 0, scale: 0.9 }}
@@ -182,17 +202,17 @@ export function Home() {
 
             <div className="space-y-3">
               {ultimosProyectos.proyectos.slice(0, 3).map((p) => (
-                <div key={p.id} className="p-4 bg-muted/20 rounded-2xl border border-border/30 hover:bg-muted/30 transition-colors">
+                <div key={p.expedienteId} className="p-4 bg-muted/20 rounded-2xl border border-border/30 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="font-mono text-xs text-muted-foreground">{p.expediente}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{p.numero}</span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
-                      {p.categoria}
+                      {p.tipo}
                     </span>
                   </div>
                   <h4 className="font-medium mb-2">{p.titulo}</h4>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Sparkles className="w-3 h-3 text-violet-500" />
-                    <span className="line-clamp-1">{p.resumenIA.slice(0, 120)}...</span>
+                    <span className="line-clamp-1">{(p.aiSummary || p.sumario || '').slice(0, 120)}...</span>
                   </div>
                 </div>
               ))}

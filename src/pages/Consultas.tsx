@@ -1,108 +1,138 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
 import {
-  Send, Calendar, Sparkles, Bot, User, FileText, Loader2, Info,
+  Send, Sparkles, Bot, User, Loader2, Info, Plus,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Navbar } from '../components/layout/Navbar';
 import Title from '../components/layout/Title';
 import Container from '../components/containers/Container';
-import { mensajesChatMock, proyectos } from '../data/mockData';
+import { sendChatMessage, createConversation } from '../services/legislatura.service';
 import type { MensajeChat } from '../types/legislatura.types';
 
-// Simulated AI responses based on keywords
-function generarRespuestaIA(pregunta: string): { contenido: string; refs: typeof proyectos } {
-  const q = pregunta.toLowerCase();
-
-  if (q.includes('transporte') || q.includes('subte') || q.includes('colectivo')) {
-    return {
-      contenido: `Encontré **2 proyectos relacionados con transporte** en el período seleccionado:\n\n1. **Programa de Modernización del Transporte Público** (Exp. 0234-D-2026): Propone colectivos eléctricos, mejora de subte y pago digital unificado. Autor: María González (PRO).\n\n2. **Pedido de Informes sobre Contrataciones del Subte** (Exp. 0211-D-2026): Solicita datos de contrataciones de SBASE y avance de líneas E y F. Autor: Roberto Fernández (UCR).\n\n¿Querés más detalles sobre alguno?`,
-      refs: [proyectos[0], proyectos[13]],
-    };
-  }
-
-  if (q.includes('salud') || q.includes('hospital')) {
-    return {
-      contenido: `En materia de **salud** encontré estos proyectos:\n\n1. **Pedido de Informes sobre Estado de Hospitales Públicos** (Exp. 0231-D-2026): Solicita información sobre estado edilicio, equipamiento y personal de los 13 hospitales generales. Autor: Carlos Rodríguez (UxP).\n\n2. **Decreto de Control de Plagas Urbanas** (Exp. 0216-D-2026): Declara emergencia sanitaria en comunas 4, 8 y 9. Ya fue aprobado.\n\nAmbos proyectos reflejan preocupaciones sanitarias actuales en la ciudad.`,
-      refs: [proyectos[4], proyectos[11]],
-    };
-  }
-
-  if (q.includes('ambiente') || q.includes('verde') || q.includes('árbol') || q.includes('sustentab')) {
-    return {
-      contenido: `Hay **3 proyectos con impacto ambiental**:\n\n1. **Plan de Forestación Urbana 2026-2030** (Exp. 0205-D-2026): 100.000 nuevos árboles priorizando barrios con menor arbolado. Aprobado en Comisión.\n\n2. **Modificación del Código de Edificación - Techos Verdes** (Exp. 0232-D-2026): Exige 30% de techo verde o paneles solares en edificios nuevos de +6 pisos.\n\n3. **Programa de Modernización del Transporte** (Exp. 0234-D-2026): Aunque es de transporte, incluye la transición a colectivos eléctricos.\n\nLa agenda ambiental está ganando peso en la legislatura.`,
-      refs: [proyectos[14], proyectos[5], proyectos[0]],
-    };
-  }
-
-  if (q.includes('vivienda') || q.includes('alquiler')) {
-    return {
-      contenido: `Encontré **2 proyectos sobre vivienda**:\n\n1. **Regulación de Alquileres Temporarios** (Exp. 0236-D-2026): Regula actividad tipo Airbnb con registro obligatorio, límites y fondo para vivienda social. Autor: Diego Pérez (FIT-U).\n\n2. **Comunicación sobre Emergencia en Villas** (Exp. 0221-D-2026): Solicita medidas urgentes de urbanización y servicios básicos en villas y asentamientos.\n\nEl acceso a la vivienda es uno de los temas más activos actualmente.`,
-      refs: [proyectos[2], proyectos[9]],
-    };
-  }
-
-  if (q.includes('tecnología') || q.includes('inteligencia artificial') || q.includes('ia') || q.includes('digital')) {
-    return {
-      contenido: `Sobre **tecnología e IA** encontré:\n\n1. **Regulación del Uso de IA por el GCBA** (Exp. 0210-D-2026): Framework regulatorio para sistemas de IA gubernamentales. Establece transparencia, no discriminación y supervisión humana. Autor: Lucía Díaz (LLA).\n\n2. **Ley de Promoción de la Economía del Conocimiento** (Exp. 0220-D-2026): Beneficios para empresas tech, polos tecnológicos y fondo para startups. Ya tiene media sanción.\n\nCABA está avanzando hacia una regulación proactiva de la tecnología.`,
-      refs: [proyectos[12], proyectos[8]],
-    };
-  }
-
-  // Default response
-  return {
-    contenido: `Analicé los **${proyectos.length} proyectos** presentados en el período seleccionado. Los temas más activos son:\n\n- **Transporte y movilidad**: Modernización de colectivos y subte\n- **Vivienda**: Regulación de alquileres temporarios y urbanización\n- **Ambiente**: Forestación y techos verdes\n- **Tecnología**: Regulación de IA y economía del conocimiento\n- **Salud**: Estado de hospitales y control de plagas\n\n¿Sobre cuál de estos temas querés profundizar? También podés preguntarme por un legislador o partido específico.`,
-    refs: [],
-  };
-}
-
 export function Consultas() {
-  const [mensajes, setMensajes] = useState<MensajeChat[]>(mensajesChatMock);
+  const [mensajes, setMensajes] = useState<MensajeChat[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [fechaDesde, setFechaDesde] = useState('2026-02-25');
-  const [fechaHasta, setFechaHasta] = useState('2026-03-03');
+  const [streamingContent, setStreamingContent] = useState('');
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [mensajes]);
+  }, [mensajes, streamingContent, scrollToBottom]);
+
+  const ensureConversation = async (): Promise<string> => {
+    if (conversationId) return conversationId;
+    try {
+      const conv = await createConversation();
+      setConversationId(conv._id);
+      return conv._id;
+    } catch (err) {
+      console.error('Error creating conversation:', err);
+      throw new Error('No se pudo crear la conversación');
+    }
+  };
+
+  const handleNewConversation = () => {
+    setConversationId(null);
+    setMensajes([]);
+    setStreamingContent('');
+    setError(null);
+  };
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
+    const pregunta = input.trim();
     const userMsg: MensajeChat = {
       id: `msg-${Date.now()}`,
       rol: 'usuario',
-      contenido: input.trim(),
+      contenido: pregunta,
       timestamp: new Date().toISOString(),
     };
 
     setMensajes((prev) => [...prev, userMsg]);
-    const pregunta = input.trim();
     setInput('');
     setIsLoading(true);
+    setStreamingContent('');
+    setError(null);
 
-    // Simulate AI thinking delay
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      let convId = await ensureConversation();
+      let accumulated = '';
 
-    const { contenido, refs } = generarRespuestaIA(pregunta);
-
-    const aiMsg: MensajeChat = {
-      id: `msg-${Date.now()}-ai`,
-      rol: 'asistente',
-      contenido,
-      timestamp: new Date().toISOString(),
-      proyectosReferenciados: refs,
-    };
-
-    setMensajes((prev) => [...prev, aiMsg]);
-    setIsLoading(false);
+      try {
+        await sendChatMessage(convId, pregunta, {
+          onToken: (token) => {
+            accumulated += token;
+            console.log(token)
+            setStreamingContent(accumulated);
+          },
+          onDone: () => {
+            const aiMsg: MensajeChat = {
+              id: `msg-${Date.now()}-ai`,
+              rol: 'asistente',
+              contenido: accumulated,
+              timestamp: new Date().toISOString(),
+            };
+            setMensajes((prev) => [...prev, aiMsg]);
+            setStreamingContent('');
+            setIsLoading(false);
+          },
+          onError: (err) => {
+            console.error('Chat stream error:', err);
+            setError('Error al obtener la respuesta. Intentá de nuevo.');
+            setStreamingContent('');
+            setIsLoading(false);
+          },
+        });
+      } catch (chatErr: any) {
+        // Si falla por conversación no encontrada, crear una nueva e intentar de nuevo
+        if (chatErr.message?.includes('404') || chatErr.message?.includes('not found')) {
+          console.log('Conversación no encontrada, creando nueva...');
+          setConversationId(null);
+          convId = await ensureConversation();
+          
+          await sendChatMessage(convId, pregunta, {
+            onToken: (token) => {
+              accumulated += token;
+              console.log(token)
+              setStreamingContent(accumulated);
+            },
+            onDone: () => {
+              const aiMsg: MensajeChat = {
+                id: `msg-${Date.now()}-ai`,
+                rol: 'asistente',
+                contenido: accumulated,
+                timestamp: new Date().toISOString(),
+              };
+              setMensajes((prev) => [...prev, aiMsg]);
+              setStreamingContent('');
+              setIsLoading(false);
+            },
+            onError: (err) => {
+              console.error('Chat stream error:', err);
+              setError('Error al obtener la respuesta. Intentá de nuevo.');
+              setStreamingContent('');
+              setIsLoading(false);
+            },
+          });
+        } else {
+          throw chatErr;
+        }
+      }
+    } catch (err) {
+      console.error('Chat error:', err);
+      setError('Error de conexión. Verificá que estés logueado e intentá de nuevo.');
+      setIsLoading(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -129,29 +159,17 @@ export function Consultas() {
             <div>
               <Title fontSize="text-3xl" style="mb-2">Consultas IA</Title>
               <p className="text-muted-foreground text-sm">
-                Preguntá sobre los proyectos de ley. La IA responde con contexto de los proyectos del período seleccionado.
+                Preguntá sobre los expedientes y proyectos de ley. La IA responde con contexto de los expedientes procesados.
               </p>
             </div>
 
-            {/* Date range selector */}
-            <div className="flex items-center gap-2 bg-background/80 backdrop-blur-lg rounded-xl border border-border/50 p-3 shadow-md">
-              <Calendar className="w-4 h-4 text-violet-600 shrink-0" />
-              <div className="flex items-center gap-2 text-sm">
-                <input
-                  type="date"
-                  value={fechaDesde}
-                  onChange={(e) => setFechaDesde(e.target.value)}
-                  className="px-2 py-1 rounded-lg bg-muted/50 border border-border text-sm outline-none focus:border-violet-500"
-                />
-                <span className="text-muted-foreground">a</span>
-                <input
-                  type="date"
-                  value={fechaHasta}
-                  onChange={(e) => setFechaHasta(e.target.value)}
-                  className="px-2 py-1 rounded-lg bg-muted/50 border border-border text-sm outline-none focus:border-violet-500"
-                />
-              </div>
-            </div>
+            <button
+              onClick={handleNewConversation}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 transition-colors text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Nueva consulta
+            </button>
           </div>
         </motion.div>
 
@@ -164,23 +182,28 @@ export function Consultas() {
         >
           <Info className="w-4 h-4 text-violet-500 shrink-0" />
           <span>
-            La IA usa como contexto los <strong>{proyectos.length} proyectos</strong> presentados entre{' '}
-            {new Date(fechaDesde + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })} y{' '}
-            {new Date(fechaHasta + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}
+            La IA usa como contexto los <strong>expedientes procesados</strong> de la Legislatura de CABA, incluyendo resúmenes y etiquetas generadas por IA.
           </span>
         </motion.div>
+
+        {/* Error */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-600 dark:text-red-400 shrink-0">
+            {error}
+          </div>
+        )}
 
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto rounded-2xl bg-background/50 backdrop-blur-lg border border-border/50 shadow-inner mb-4" data-reset-scroll="true">
           <div className="p-4 space-y-4">
             {/* Welcome Message */}
-            {mensajes.length === 0 && (
+            {mensajes.length === 0 && !isLoading && (
               <div className="text-center py-12">
                 <Bot className="w-16 h-16 mx-auto mb-4 text-violet-500/50" />
                 <h3 className="text-lg font-semibold mb-2">Asistente de la Legislatura</h3>
                 <p className="text-muted-foreground text-sm mb-8 max-w-md mx-auto">
-                  Hacé preguntas sobre los proyectos de ley presentados en la Legislatura de CABA.
-                  Podés consultar por tema, legislador, partido o fecha.
+                  Hacé preguntas sobre los expedientes y proyectos de ley presentados en la Legislatura de CABA.
+                  Podés consultar por tema, legislador, bloque o tipo de expediente.
                 </p>
 
                 {/* Suggestions */}
@@ -228,21 +251,6 @@ export function Consultas() {
                     )}
                   </div>
 
-                  {/* Referenced Projects */}
-                  {msg.proyectosReferenciados && msg.proyectosReferenciados.length > 0 && (
-                    <div className="mt-2 space-y-1.5">
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <FileText className="w-3 h-3" /> Proyectos referenciados:
-                      </span>
-                      {msg.proyectosReferenciados.map((p) => (
-                        <div key={p.id} className="text-xs p-2 bg-violet-500/5 border border-violet-500/10 rounded-lg">
-                          <span className="font-mono text-muted-foreground mr-1">{p.expediente}</span>
-                          {p.titulo}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
                   <div className={`text-xs text-muted-foreground mt-1 ${msg.rol === 'usuario' ? 'text-right' : ''}`}>
                     {new Date(msg.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                   </div>
@@ -256,7 +264,7 @@ export function Consultas() {
               </motion.div>
             ))}
 
-            {/* Loading indicator */}
+            {/* Streaming indicator */}
             {isLoading && (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -266,11 +274,18 @@ export function Consultas() {
                 <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-purple-600 flex items-center justify-center shrink-0 shadow-md">
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
-                <div className="bg-background/90 border border-border/50 rounded-2xl p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Analizando proyectos...
-                  </div>
+                <div className="bg-background/90 border border-border/50 rounded-2xl p-4 shadow-sm max-w-[80%]">
+                  {streamingContent ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>ol]:mb-2 [&>ul]:mb-2">
+                      <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                      <span className="inline-block w-2 h-4 bg-violet-500 animate-pulse ml-0.5" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Analizando expedientes...
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -282,7 +297,7 @@ export function Consultas() {
         {/* Input */}
         <div className="shrink-0">
           {/* Quick suggestions if chat has messages */}
-          {mensajes.length > 0 && mensajes.length < 4 && (
+          {mensajes.length > 0 && mensajes.length < 4 && !isLoading && (
             <div className="flex flex-wrap gap-2 mb-3">
               {sugerencias.slice(0, 3).map((s) => (
                 <button
@@ -303,7 +318,7 @@ export function Consultas() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Hacé una pregunta sobre los proyectos de ley..."
+              placeholder="Hacé una pregunta sobre los expedientes de la Legislatura..."
               className="flex-1 px-5 py-3.5 rounded-xl bg-background/80 backdrop-blur-lg border border-border/50 focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none transition-all"
               disabled={isLoading}
             />

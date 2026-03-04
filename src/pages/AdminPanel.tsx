@@ -29,7 +29,6 @@ export function AdminPanel() {
 
       // Mapear respuesta del back (UserDocument) a la interfaz del front
       const mappedUsers: UserPermission[] = response.data.users.map((u: any) => {
-        console.log(u)
         return {
           id: u._id,
           email: u.email,
@@ -55,9 +54,7 @@ export function AdminPanel() {
 
   // 2. Función conectada al Backend para cambiar rol
   const changeRole = async (userId: string, newRole: 'admin' | 'user' | "unknown", user) => {
-    console.log(user)
     try {
-      console.log(userId)
       await axiosInstance.put(`/users/${userId}/role`, { role: newRole });
       const previousUsers = [...users];
       setUsers(users.map(user =>

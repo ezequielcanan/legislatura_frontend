@@ -111,7 +111,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/proyectos/:id"
+        path="/proyectos/:expedienteId"
         element={
           <ProtectedRoute>
             <ProyectoDetalle />
