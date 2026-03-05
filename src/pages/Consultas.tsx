@@ -180,7 +180,6 @@ export function Consultas() {
         await sendChatMessage(convId, pregunta, {
           onToken: (token) => {
             accumulated += token;
-            console.log(token)
             setStreamingContent(accumulated);
           },
           onDone: () => {
@@ -211,7 +210,6 @@ export function Consultas() {
           await sendChatMessage(convId, pregunta, {
             onToken: (token) => {
               accumulated += token;
-              console.log(token)
               setStreamingContent(accumulated);
             },
             onDone: () => {
