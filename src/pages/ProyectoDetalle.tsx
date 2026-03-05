@@ -31,13 +31,7 @@ const tipoIcon: Record<string, string> = {
 };
 
 function formatFechaCompleta(fecha: string): string {
-  const d = new Date(fecha + 'T12:00:00');
-  return d.toLocaleDateString('es-AR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  return fecha.split("T")[0]
 }
 
 export function ProyectoDetalle() {
@@ -234,24 +228,23 @@ export function ProyectoDetalle() {
               >
                 <div className="flex items-center gap-2 mb-4">
                   <Download className="w-5 h-5 text-violet-600" />
-                  <h2 className="text-lg font-semibold">Documentos</h2>
+                  <h2 className="text-lg font-semibold">Bibliografía</h2>
                 </div>
                 <div className="space-y-2">
-                  {proyecto.libros.map((libro) => (
-                    <a
-                      key={libro.idDoc}
-                      href={libro.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 p-3 bg-muted/20 rounded-xl border border-border/30 hover:bg-violet-500/5 hover:border-violet-500/20 transition-all cursor-pointer group"
+                  {proyecto.libros.map((libro, i) => (
+                    <div
+                      key={libro.idDoc + i}
+                      className="flex items-center gap-3 p-3 bg-muted/20 rounded-xl border border-border/30 transition-all group"
                     >
-                      <FileText className="w-5 h-5 text-muted-foreground group-hover:text-violet-500 shrink-0 transition-colors" />
+                      <FileText className="w-5 h-5 text-muted-foreground shrink-0 transition-colors" />
                       <div className="min-w-0 flex-1">
                         <div className="font-medium text-sm truncate">{libro.nombre}</div>
                         <div className="text-xs text-muted-foreground">{libro.tipo}</div>
                       </div>
-                      <Download className="w-4 h-4 text-muted-foreground group-hover:text-violet-500 shrink-0 transition-colors" />
-                    </a>
+                      {/*
+                      <Download className="w-4 h-4 text-muted-foreground shrink-0 transition-colors" />
+                      */}
+                    </div>
                   ))}
                 </div>
               </motion.div>
@@ -280,14 +273,14 @@ export function ProyectoDetalle() {
                   <Calendar className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                   <div>
                     <div className="text-xs text-muted-foreground uppercase tracking-wide">Fecha de ingreso</div>
-                    <div className="font-medium">{formatFechaCompleta(proyecto.fechaIngreso)}</div>
+                    <div className="font-medium">{formatFechaCompleta(proyecto.fechaIngresoDate)}</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                   <div>
                     <div className="text-xs text-muted-foreground uppercase tracking-wide">Ubicación</div>
-                    <div className="font-medium">{proyecto.ubicacion}</div>
+                    <div className="font-medium">{proyecto.ubicacion}: {proyecto.estado}</div>
                   </div>
                 </div>
                 {proyecto.anioParlamentario && (
@@ -303,7 +296,7 @@ export function ProyectoDetalle() {
             </motion.div>
 
             {/* Autores */}
-            {proyecto?.autores?.length > 0 && (
+            {proyecto?.autor && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -312,10 +305,20 @@ export function ProyectoDetalle() {
               >
                 <div className="flex items-center gap-2 mb-4">
                   <Users className="w-5 h-5 text-violet-600" />
-                  <h2 className="text-lg font-semibold">Autor{proyecto?.autores?.length > 1 ? 'es' : ''}</h2>
+                  <h2 className="text-lg font-semibold">Autores</h2>
                 </div>
-                <div className="space-y-2">
-                  {proyecto?.autores?.map((autor) => (
+                <div className="flex flex-col gap-y-2">
+                  <Link key={proyecto?.autor.legisladorId} to={`/legisladores/${proyecto?.autor.legisladorId}`}>
+                    <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-xl border border-border/30 hover:bg-violet-500/5 hover:border-violet-500/20 transition-all cursor-pointer">
+                      <div className="w-9 h-9 rounded-lg bg-violet-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                        {proyecto?.autor.nombre[0]}{proyecto?.autor.apellido[0]}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-md">{proyecto?.autor.nombre} {proyecto?.autor.apellido}</div>
+                      </div>
+                    </div>
+                  </Link>
+                  {proyecto?.coautores?.map((autor) => (
                     <Link key={autor.legisladorId} to={`/legisladores/${autor.legisladorId}`}>
                       <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-xl border border-border/30 hover:bg-violet-500/5 hover:border-violet-500/20 transition-all cursor-pointer">
                         <div className="w-9 h-9 rounded-lg bg-violet-600 flex items-center justify-center text-white text-xs font-bold shrink-0">

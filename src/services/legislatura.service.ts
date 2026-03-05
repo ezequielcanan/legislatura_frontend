@@ -160,7 +160,25 @@ export async function createConversation(): Promise<{ _id: string }> {
   return data;
 }
 
-export async function getConversations(): Promise<any[]> {
-  const { data } = await axiosInstance.get('/chat/conversations');
+export async function getConversations(page = 1, limit = 20): Promise<{ conversations: any[]; total: number }> {
+  const { data } = await axiosInstance.get('/chat/conversations', {
+    params: { page, limit },
+  });
   return data;
+}
+
+export async function getConversation(id: string): Promise<any> {
+  const { data } = await axiosInstance.get(`/chat/conversations/${id}`);
+  return data;
+}
+
+export async function getConversationMessages(id: string, limit = 50): Promise<any[]> {
+  const { data } = await axiosInstance.get(`/chat/conversations/${id}/messages`, {
+    params: { limit },
+  });
+  return data;
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  await axiosInstance.delete(`/chat/conversations/${id}`);
 }

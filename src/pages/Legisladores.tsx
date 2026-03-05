@@ -45,8 +45,8 @@ function LegisladorCard({ legislador, index }: { legislador: Legislador; index: 
               </h3>
               <div className="flex items-center gap-2 mt-1">
                 <span
-                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
-                  style={{ color: "#" + (legislador.bloqueColor || '7c3aed') }}
+                  className="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-xs font-medium text-white"
+                  style={{ backgroundColor: "#" + (legislador.bloqueColor || '7c3aed') }}
                 >
                   {legislador.bloque}
                 </span>

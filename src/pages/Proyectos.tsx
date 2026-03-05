@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Search, Filter, FileText,
-  Tag, Users, ChevronDown, ChevronUp, X, Sparkles, Loader2,
+  Tag, Users, X, Sparkles, Loader2,
+  ChevronLeft, ChevronRight, Calendar, ChevronsLeft, ChevronsRight,
 } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
 import Title from '../components/layout/Title';
@@ -11,8 +12,10 @@ import Container from '../components/containers/Container';
 import { searchExpedientes, getBloques, getLegisladores } from '../services/legislatura.service';
 import type { Expediente, Bloque, Legislador } from '../types/legislatura.types';
 
+const PAGE_SIZE = 10;
+
 const categorias = [
-  'Todos', 'Proyecto de Ley', 'Proyecto de Resolución', 'Proyecto de Declaración', 'Proyecto de Comunicación', 'Pedido de Informes',
+  'Todos', 'LEY', 'RESOLUCION', 'DECLARACION', 'HACE CONSIDERACIONES', 'INTERNO', 'ESCUELAS', 'OFICIAL', 'PARTICULAR', 'FORO DE LA TERCERA EDAD', 'REMITE ACTUACIONES', 'NO DEFINIDO',
 ];
 
 const estados = [
@@ -28,15 +31,133 @@ const estadoColor: Record<string, string> = {
 };
 
 const categoriaIcon: Record<string, string> = {
-  'Proyecto de Ley': '📜',
-  'Proyecto de Resolución': '📋',
-  'Proyecto de Declaración': '📢',
-  'Proyecto de Comunicación': '📨',
-  'Pedido de Informes': '🔍',
+  'LEY': '📜',
+  'RESOLUCION': '📌',
+  'DECLARACION': '📣',
+  'HACE CONSIDERACIONES': '💭',
+  'INTERNO': '🏛️',
+  'ESCUELAS': '🏫',
+  'OFICIAL': '👔',
+  'PARTICULAR': '👤',
+  'FORO DE LA TERCERA EDAD': '👵',
+  'REMITE ACTUACIONES': '📤',
+  'NO DEFINIDO': '❓',
 };
 
+// ─── Helpers ─────────────────────────────────────
+
+function formatDateISO(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatDateDisplay(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('es-AR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  return formatDateISO(date);
+}
+
+function isToday(dateStr: string): boolean {
+  return dateStr === formatDateISO(new Date());
+}
+
+// ─── Pagination ──────────────────────────────────
+
+function Pagination({
+  currentPage,
+  totalPages,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  const pages: (number | string)[] = [];
+  const delta = 2;
+  const left = Math.max(2, currentPage - delta);
+  const right = Math.min(totalPages - 1, currentPage + delta);
+
+  pages.push(1);
+  if (left > 2) pages.push('...');
+  for (let i = left; i <= right; i++) pages.push(i);
+  if (right < totalPages - 1) pages.push('...');
+  if (totalPages > 1) pages.push(totalPages);
+
+  return (
+    <div className="flex items-center justify-center gap-1 mt-8">
+      <button
+        onClick={() => onPageChange(1)}
+        disabled={currentPage === 1}
+        className="p-2 rounded-lg hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        title="Primera página"
+      >
+        <ChevronsLeft className="w-4 h-4" />
+      </button>
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="p-2 rounded-lg hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        title="Página anterior"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+
+      {pages.map((page, i) =>
+        typeof page === 'string' ? (
+          <span key={`ellipsis-${i}`} className="px-2 text-muted-foreground">...</span>
+        ) : (
+          <button
+            key={page}
+            onClick={() => onPageChange(page)}
+            className={`min-w-[36px] h-9 rounded-lg text-sm font-medium transition-colors ${page === currentPage
+                ? 'bg-violet-600 text-white shadow-md'
+                : 'hover:bg-muted/50 text-muted-foreground'
+              }`}
+          >
+            {page}
+          </button>
+        ),
+      )}
+
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className="p-2 rounded-lg hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        title="Página siguiente"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+      <button
+        onClick={() => onPageChange(totalPages)}
+        disabled={currentPage === totalPages}
+        className="p-2 rounded-lg hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        title="Última página"
+      >
+        <ChevronsRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+// ─── ProyectoCard ────────────────────────────────
+
 function ProyectoCard({ proyecto, index }: { proyecto: Expediente; index: number }) {
-  const [expanded, setExpanded] = useState(false);
   const resumen = proyecto.aiSummary || proyecto.sumario;
   const tags = proyecto.aiTags || [];
 
@@ -45,7 +166,7 @@ function ProyectoCard({ proyecto, index }: { proyecto: Expediente; index: number
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
+      transition={{ delay: index * 0.03 }}
       className="bg-background/80 backdrop-blur-lg rounded-2xl border border-border/50 shadow-lg hover:shadow-xl transition-all overflow-hidden"
     >
       <div className="p-6">
@@ -89,12 +210,15 @@ function ProyectoCard({ proyecto, index }: { proyecto: Expediente; index: number
         )}
 
         {/* Authors */}
-        {proyecto?.autores?.length > 0 && (
+        {proyecto?.autor && (
           <div className="flex flex-wrap gap-4 mb-3 text-sm">
             <div className="flex items-center gap-2 flex-wrap">
               <Users className="w-4 h-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Autor{proyecto?.autores?.length > 1 ? 'es' : ''}:</span>
-              {proyecto?.autores?.map((a) => (
+              <span className="text-muted-foreground">Autores:</span>
+              <Link key={proyecto.autor.legisladorId} to={`/legisladores/${proyecto.autor.legisladorId}`} className="font-bold text-md hover:text-violet-600 dark:hover:text-violet-400 transition-colors">
+                {proyecto.autor.nombre} {proyecto.autor.apellido}
+              </Link>
+              {proyecto?.coautores?.map((a) => (
                 <Link key={a.legisladorId} to={`/legisladores/${a.legisladorId}`} className="font-medium hover:text-violet-600 dark:hover:text-violet-400 transition-colors">
                   {a.nombre} {a.apellido}
                 </Link>
@@ -105,7 +229,7 @@ function ProyectoCard({ proyecto, index }: { proyecto: Expediente; index: number
 
         {/* Tags */}
         {tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
+          <div className="flex flex-wrap gap-1.5">
             {tags.map((tag) => (
               <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
                 {tag}
@@ -115,7 +239,7 @@ function ProyectoCard({ proyecto, index }: { proyecto: Expediente; index: number
         )}
 
         {/* Expand toggle for sumario when aiSummary exists */}
-        {proyecto.aiSummary && proyecto.sumario && (
+        {/*proyecto.aiSummary && proyecto.sumario && (
           <>
             <button
               onClick={() => setExpanded(!expanded)}
@@ -140,7 +264,7 @@ function ProyectoCard({ proyecto, index }: { proyecto: Expediente; index: number
               )}
             </AnimatePresence>
           </>
-        )}
+        )*/}
       </div>
     </motion.div>
   );
@@ -155,6 +279,15 @@ export function Proyectos() {
   const estadoFiltro = searchParams.get('estado') || 'Todos';
   const bloqueFiltro = searchParams.get('bloque') || 'Todos';
   const legisladorFiltro = searchParams.get('legislador') || 'Todos';
+  const dateFrom = searchParams.get('dateFrom') || '';
+  const dateTo = searchParams.get('dateTo') || '';
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+
+  // Day-by-day navigation date (defaults to today)
+  const selectedDate = searchParams.get('fecha') || formatDateISO(new Date());
+
+  // Mode: 'day' for day-by-day browsing, 'range' for custom date range
+  const dateMode = searchParams.get('modo') || 'day';
 
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [proyectos, setProyectos] = useState<Expediente[]>([]);
@@ -162,12 +295,20 @@ export function Proyectos() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Local state for date range inputs to avoid resetting while typing
+  const [localDateFrom, setLocalDateFrom] = useState(dateFrom);
+  const [localDateTo, setLocalDateTo] = useState(dateTo);
+
   // Reference data
   const [bloques, setBloques] = useState<Bloque[]>([]);
   const [legisladoresList, setLegisladoresList] = useState<Legislador[]>([]);
 
-  // Debounce timer for search
+  // Debounce timers
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dateFromDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dateToDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const totalPages = Math.max(1, Math.ceil(totalResultados / PAGE_SIZE));
 
   // Helper to update a single search param
   const setParam = useCallback(
@@ -179,6 +320,28 @@ export function Proyectos() {
         } else {
           next.set(key, value);
         }
+        // Reset page when changing filters
+        if (key !== 'page') {
+          next.delete('page');
+        }
+        return next;
+      });
+    },
+    [setSearchParams],
+  );
+
+  const setMultipleParams = useCallback(
+    (params: Record<string, string>) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        for (const [key, value] of Object.entries(params)) {
+          if (value === '' || value === 'Todos') {
+            next.delete(key);
+          } else {
+            next.set(key, value);
+          }
+        }
+        next.delete('page');
         return next;
       });
     },
@@ -189,19 +352,73 @@ export function Proyectos() {
     (value: string) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => setParam('q', value), 400);
-      // Immediately update the input via a local override isn't needed since we read from searchParams
-      // But we need the input to feel responsive, so we set it immediately:
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         if (!value) next.delete('q');
         else next.set('q', value);
+        next.delete('page');
         return next;
       });
     },
     [setParam, setSearchParams],
   );
 
+  // Day navigation
+  const goToPrevDay = () => setMultipleParams({ fecha: addDays(selectedDate, -1), modo: 'day' });
+  const goToNextDay = () => {
+    const next = addDays(selectedDate, 1);
+    const today = formatDateISO(new Date());
+    if (next <= today) {
+      setMultipleParams({ fecha: next, modo: 'day' });
+    }
+  };
+  const goToToday = () => setMultipleParams({ fecha: formatDateISO(new Date()), modo: 'day' });
+
+  const switchToRange = () => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('modo', 'range');
+      next.delete('fecha');
+      next.delete('page');
+      return next;
+    });
+  };
+
+  const switchToDay = () => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('modo', 'day');
+      if (!next.get('fecha')) next.set('fecha', formatDateISO(new Date()));
+      next.delete('dateFrom');
+      next.delete('dateTo');
+      next.delete('page');
+      return next;
+    });
+  };
+
   const filtrosActivos = categoriaFiltro !== 'Todos' || estadoFiltro !== 'Todos' || bloqueFiltro !== 'Todos' || legisladorFiltro !== 'Todos' || busqueda.length > 0;
+
+  // Sync local date state when URL params change externally
+  useEffect(() => { setLocalDateFrom(dateFrom); }, [dateFrom]);
+  useEffect(() => { setLocalDateTo(dateTo); }, [dateTo]);
+
+  // Debounced date setters
+  const setDebouncedDateFrom = useCallback(
+    (value: string) => {
+      setLocalDateFrom(value);
+      if (dateFromDebounceRef.current) clearTimeout(dateFromDebounceRef.current);
+      dateFromDebounceRef.current = setTimeout(() => setParam('dateFrom', value), 600);
+    },
+    [setParam],
+  );
+  const setDebouncedDateTo = useCallback(
+    (value: string) => {
+      setLocalDateTo(value);
+      if (dateToDebounceRef.current) clearTimeout(dateToDebounceRef.current);
+      dateToDebounceRef.current = setTimeout(() => setParam('dateTo', value), 600);
+    },
+    [setParam],
+  );
 
   // Load bloques and legisladores on mount
   useEffect(() => {
@@ -211,6 +428,7 @@ export function Proyectos() {
           getBloques(),
           getLegisladores(),
         ]);
+
         setBloques(bloquesData);
         setLegisladoresList(legisladoresData);
       } catch (err) {
@@ -228,12 +446,24 @@ export function Proyectos() {
       setLoading(true);
       setError(null);
       try {
-        const params: Record<string, any> = { limit: 50 };
+        const params: Record<string, any> = { limit: PAGE_SIZE };
         if (busqueda) params.query = busqueda;
         if (categoriaFiltro !== 'Todos') params.tipo = categoriaFiltro;
         if (estadoFiltro !== 'Todos') params.estado = estadoFiltro;
         if (bloqueFiltro !== 'Todos') params.bloqueId = Number(bloqueFiltro);
         if (legisladorFiltro !== 'Todos') params.legisladorId = Number(legisladorFiltro);
+
+        // Date filtering
+        if (dateMode === 'day') {
+          params.dateFrom = selectedDate;
+          params.dateTo = selectedDate;
+        } else if (dateMode === 'range') {
+          if (dateFrom) params.dateFrom = dateFrom;
+          if (dateTo) params.dateTo = dateTo;
+        }
+
+        // Pagination
+        params.skip = (currentPage - 1) * PAGE_SIZE;
 
         const result = await searchExpedientes(params);
         if (!cancelled) {
@@ -252,10 +482,15 @@ export function Proyectos() {
 
     fetchData();
     return () => { cancelled = true; };
-  }, [busqueda, categoriaFiltro, estadoFiltro, bloqueFiltro, legisladorFiltro]);
+  }, [busqueda, categoriaFiltro, estadoFiltro, bloqueFiltro, legisladorFiltro, selectedDate, dateFrom, dateTo, dateMode, currentPage]);
 
   const limpiarFiltros = () => {
-    setSearchParams({});
+    setSearchParams({ fecha: formatDateISO(new Date()), modo: 'day' });
+  };
+
+  const handlePageChange = (page: number) => {
+    setParam('page', String(page));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -268,6 +503,136 @@ export function Proyectos() {
           <p className="text-muted-foreground">
             Explorá los proyectos presentados en la Legislatura de CABA
           </p>
+        </motion.div>
+
+        {/* Date Navigation Bar */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="mb-6"
+        >
+          <div className="bg-background/80 backdrop-blur-lg rounded-2xl border border-border/50 shadow-lg p-4">
+            {/* Mode Tabs */}
+            <div className="flex items-center gap-2 mb-4">
+              <button
+                onClick={switchToDay}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${dateMode === 'day'
+                    ? 'bg-violet-600 text-white shadow-md'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                  }`}
+              >
+                Por día
+              </button>
+              <button
+                onClick={switchToRange}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${dateMode === 'range'
+                    ? 'bg-violet-600 text-white shadow-md'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                  }`}
+              >
+                Rango de fechas
+              </button>
+            </div>
+
+            {dateMode === 'day' ? (
+              /* Day-by-day navigation */
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <button
+                  onClick={goToPrevDay}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-muted/50 hover:bg-muted border border-border/50 transition-colors text-sm font-medium"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">Día anterior</span>
+                </button>
+
+                <div className="flex items-center gap-3 text-center">
+                  <Calendar className="w-5 h-5 text-violet-500" />
+                  <div>
+                    <p className="text-base sm:text-lg font-semibold capitalize">
+                      {formatDateDisplay(selectedDate)}
+                    </p>
+                  </div>
+                  <label className="cursor-pointer">
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      max={formatDateISO(new Date())}
+                      onChange={(e) => {
+                        if (e.target.value) setMultipleParams({ fecha: e.target.value, modo: 'day' });
+                      }}
+                      className="sr-only"
+                    />
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {!isToday(selectedDate) && (
+                    <button
+                      onClick={goToToday}
+                      className="px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 transition-colors text-sm font-medium"
+                    >
+                      Hoy
+                    </button>
+                  )}
+                  <button
+                    onClick={goToNextDay}
+                    disabled={isToday(selectedDate)}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-muted/50 hover:bg-muted border border-border/50 transition-colors text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <span className="hidden sm:inline">Día siguiente</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Date range picker */
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-muted-foreground font-medium whitespace-nowrap">Desde:</label>
+                  <input
+                    type="date"
+                    value={localDateFrom}
+                    max={localDateTo || formatDateISO(new Date())}
+                    onChange={(e) => setDebouncedDateFrom(e.target.value)}
+                    className="px-3 py-2 rounded-xl bg-muted/50 border border-border focus:border-violet-500 outline-none text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-muted-foreground font-medium whitespace-nowrap">Hasta:</label>
+                  <input
+                    type="date"
+                    value={localDateTo}
+                    min={localDateFrom}
+                    max={formatDateISO(new Date())}
+                    onChange={(e) => setDebouncedDateTo(e.target.value)}
+                    className="px-3 py-2 rounded-xl bg-muted/50 border border-border focus:border-violet-500 outline-none text-sm"
+                  />
+                </div>
+                {(localDateFrom || localDateTo) && (
+                  <button
+                    onClick={() => {
+                      if (dateFromDebounceRef.current) clearTimeout(dateFromDebounceRef.current);
+                      if (dateToDebounceRef.current) clearTimeout(dateToDebounceRef.current);
+                      setLocalDateFrom('');
+                      setLocalDateTo('');
+                      setSearchParams((prev) => {
+                        const next = new URLSearchParams(prev);
+                        next.delete('dateFrom');
+                        next.delete('dateTo');
+                        next.delete('page');
+                        return next;
+                      });
+                    }}
+                    className="flex items-center gap-1 text-sm text-violet-600 dark:text-violet-400 hover:text-violet-700 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                    Limpiar fechas
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </motion.div>
 
         {/* Search & Filter Bar */}
@@ -285,11 +650,10 @@ export function Proyectos() {
             </div>
             <button
               onClick={() => setMostrarFiltros(!mostrarFiltros)}
-              className={`flex items-center gap-2 px-5 py-3 rounded-xl border transition-all ${
-                mostrarFiltros || filtrosActivos
+              className={`flex items-center gap-2 px-5 py-3 rounded-xl border transition-all ${mostrarFiltros || filtrosActivos
                   ? 'bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400'
                   : 'bg-background/80 border-border/50 hover:bg-accent'
-              }`}
+                }`}
             >
               <Filter className="w-5 h-5" />
               Filtros
@@ -388,10 +752,17 @@ export function Proyectos() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Results count */}
+        {/* Results count & page info */}
         {!loading && !error && (
-          <div className="mb-4 text-sm text-muted-foreground">
-            {totalResultados} proyecto{totalResultados !== 1 ? 's' : ''} encontrado{totalResultados !== 1 ? 's' : ''}
+          <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
+            <span>
+              {totalResultados} proyecto{totalResultados !== 1 ? 's' : ''} encontrado{totalResultados !== 1 ? 's' : ''}
+            </span>
+            {totalPages > 1 && (
+              <span>
+                Página {currentPage} de {totalPages}
+              </span>
+            )}
           </div>
         )}
 
@@ -419,24 +790,53 @@ export function Proyectos() {
 
         {/* Projects flat list */}
         {!loading && !error && (
-          <div className="space-y-4">
-            {proyectos?.map((proyecto, idx) => (
-              <ProyectoCard key={proyecto.expedienteId} proyecto={proyecto} index={idx} />
-            ))}
+          <>
+            <div className="space-y-4">
+              {proyectos?.map((proyecto, idx) => (
+                <ProyectoCard key={proyecto.expedienteId} proyecto={proyecto} index={idx} />
+              ))}
 
-            {proyectos?.length === 0 && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
-                <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-                <p className="text-lg text-muted-foreground">No se encontraron proyectos con los filtros seleccionados</p>
-                <button
-                  onClick={limpiarFiltros}
-                  className="mt-4 text-violet-600 dark:text-violet-400 hover:underline text-sm"
-                >
-                  Limpiar filtros
-                </button>
-              </motion.div>
-            )}
-          </div>
+              {proyectos?.length === 0 && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
+                  <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+                  <p className="text-lg text-muted-foreground">
+                    No se encontraron proyectos {dateMode === 'day' ? `para el ${formatDateDisplay(selectedDate)}` : 'con los filtros seleccionados'}
+                  </p>
+                  {dateMode === 'day' ? (
+                    <div className="mt-4 flex items-center justify-center gap-3">
+                      <button
+                        onClick={goToPrevDay}
+                        className="text-violet-600 dark:text-violet-400 hover:underline text-sm"
+                      >
+                        ← Probar día anterior
+                      </button>
+                      <span className="text-muted-foreground">|</span>
+                      <button
+                        onClick={goToToday}
+                        className="text-violet-600 dark:text-violet-400 hover:underline text-sm"
+                      >
+                        Ir a hoy
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={limpiarFiltros}
+                      className="mt-4 text-violet-600 dark:text-violet-400 hover:underline text-sm"
+                    >
+                      Limpiar filtros
+                    </button>
+                  )}
+                </motion.div>
+              )}
+            </div>
+
+            {/* Pagination */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          </>
         )}
       </div>
     </Container>

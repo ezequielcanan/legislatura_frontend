@@ -11,7 +11,7 @@ import Container from '../components/containers/Container';
 import { getLegisladorById, getExpedientesByLegislador } from '../services/legislatura.service';
 import type { Legislador, Expediente } from '../types/legislatura.types';
 
-const PROYECTOS_POR_PAGINA = 5;
+const PROYECTOS_POR_PAGINA = 10;
 
 const estadoColor: Record<string, string> = {
   'Ingresado': 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
@@ -26,7 +26,8 @@ const estadoColor: Record<string, string> = {
 
 function calcularEdad(fechaNacimiento: string): number {
   const hoy = new Date();
-  const nacimiento = new Date(fechaNacimiento);
+  const [day, month, year] = fechaNacimiento.split('/');
+  const nacimiento = new Date(Number(year), Number(month) - 1, Number(day));
   let edad = hoy.getFullYear() - nacimiento.getFullYear();
   const m = hoy.getMonth() - nacimiento.getMonth();
   if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
@@ -83,12 +84,12 @@ export function LegisladorDetalle() {
   const legisladorIdNum = Number(id);
 
   const proyectosAutor = useMemo(() =>
-    expedientes.filter((p) => p.autores.some((a) => a.legisladorId === legisladorIdNum)),
+    expedientes.filter((p) => p.autor?.legisladorId === legisladorIdNum),
     [expedientes, legisladorIdNum]
   );
 
   const proyectosCoautor = useMemo(() =>
-    expedientes.filter((p) => !p.autores.some((a) => a.legisladorId === legisladorIdNum)),
+    expedientes.filter((p) => p.coautores?.some((a) => a.legisladorId === legisladorIdNum)),
     [expedientes, legisladorIdNum]
   );
 
@@ -157,8 +158,7 @@ export function LegisladorDetalle() {
       </Container>
     );
   }
-
-  const edad = calcularEdad(legislador.fechaNacimiento);
+  const edad = calcularEdad(legislador.fecha_nacimiento);
   const mandatoActual = tieneMandatoActual(legislador.fecha_fin_mandato);
   const iniciales = `${legislador.nombre[0]}${legislador.apellido[0]}`;
   const fotoUrl = legislador.fotoM || legislador.foto;
@@ -184,7 +184,7 @@ export function LegisladorDetalle() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-background/80 backdrop-blur-lg rounded-2xl border border-border/50 shadow-lg overflow-hidden mb-8"
         >
-          <div className="h-2" style={{ backgroundColor: legislador.bloqueColor }} />
+          <div className="h-2" style={{ backgroundColor: "#" + legislador.bloque_color }} />
           <div className="p-6 sm:p-8">
             <div className="flex flex-col sm:flex-row items-start gap-6">
               {/* Avatar */}
@@ -197,7 +197,7 @@ export function LegisladorDetalle() {
               ) : (
                 <div
                   className="w-24 h-24 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-lg shrink-0"
-                  style={{ backgroundColor: legislador.bloqueColor }}
+                  style={{ backgroundColor: "#" + legislador.bloque_color }}
                 >
                   {iniciales}
                 </div>
@@ -210,8 +210,8 @@ export function LegisladorDetalle() {
                     {legislador.nombre} {legislador.apellido}
                   </h1>
                   <span
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium text-white"
-                    style={{ backgroundColor: legislador.bloqueColor }}
+                    className="inline-flex items-end gap-1.5 px-3 py-1 rounded-full text-sm font-medium text-white"
+                    style={{ backgroundColor: "#" + legislador.bloque_color }}
                   >
                     {legislador.bloque}
                   </span>
@@ -369,7 +369,7 @@ export function LegisladorDetalle() {
           </div>
 
           {/* Project Cards */}
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             {proyectosPaginados.map((proyecto, idx) => (
               <ProyectoCardMini key={proyecto.expedienteId} proyecto={proyecto} legisladorId={legisladorIdNum} index={idx} />
             ))}
@@ -421,7 +421,7 @@ export function LegisladorDetalle() {
 }
 
 function ProyectoCardMini({ proyecto, legisladorId, index }: { proyecto: Expediente; legisladorId: number; index: number }) {
-  const esAutor = proyecto.autores.some((a) => a.legisladorId === legisladorId);
+  const esAutor = proyecto.autor?.legisladorId === legisladorId;
   const resumen = proyecto.aiSummary || proyecto.sumario;
 
   return (

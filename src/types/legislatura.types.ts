@@ -34,6 +34,7 @@ export interface Legislador {
   urlBloque: string;
   bloqueId: number;
   bloqueColor: string;
+  bloque_color: string;
   foto: string;
   fotoS: string;
   fotoM: string;
@@ -45,7 +46,7 @@ export interface Legislador {
   fecha_fin_mandato: string;
   cargoRecinto: string;
   idCargoRecinto: number;
-  fechaNacimiento: string;
+  fecha_nacimiento: string;
   telefono: string;
   oficina: string;
   comisiones?: Comision[];
@@ -86,7 +87,8 @@ export interface Expediente {
   fechaIngreso: string;
   fechaIngresoDate: string;
   anioParlamentario: string;
-  autores: ExpedienteAutor[];
+  autor: ExpedienteAutor;
+  coautores: ExpedienteAutor[];
   pdfText?: string;
   aiSummary?: string;
   aiTags?: string[];

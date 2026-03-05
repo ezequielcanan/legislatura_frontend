@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
-  FileText, Users, Building2, MessageSquare, Sparkles, Calendar, TrendingUp, ArrowRight,
+  FileText, Users, Building2, MessageSquare, Sparkles, Calendar, ArrowRight,
 } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
 import Title from '../components/layout/Title';
@@ -14,7 +14,6 @@ export function Home() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<LegislaturaStats | null>(null);
   const [ultimosProyectos, setUltimosProyectos] = useState<FechaProyectos | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
@@ -23,12 +22,10 @@ export function Home() {
           getStats().catch(() => null),
           getExpedientesGrouped(7).catch(() => []),
         ]);
-        setStats(statsData);
+        setStats(statsData?.overview || null);
         if (grouped.length > 0) setUltimosProyectos(grouped[0]);
       } catch (err) {
         console.error('Error loading home data:', err);
-      } finally {
-        setLoading(false);
       }
     }
     load();
