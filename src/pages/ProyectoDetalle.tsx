@@ -37,7 +37,7 @@ function formatFechaCompleta(fecha: string): string {
 export function ProyectoDetalle() {
   const { expedienteId } = useParams<{ expedienteId: string }>();
   const navigate = useNavigate();
-
+  
   const [proyecto, setProyecto] = useState<Expediente | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -292,6 +292,12 @@ export function ProyectoDetalle() {
                     </div>
                   </div>
                 )}
+                <div className='text-violet-600 dark:text-violet-400 flex items-center gap-1 mt-2'>
+                  <a href={`https://parlamentaria.legislatura.gob.ar//pages/download.aspx?IdDoc=${proyecto.url}`} target="_blank" rel="noopener noreferrer" className="ml-1 text-sm hover:text-violet-500 dark:hover:text-violet-300 flex cursor-pointer items-center gap-1">
+                  <Download className="w-4 h-4" />
+                    Descargar Documento
+                  </a>
+                </div>
               </div>
             </motion.div>
 
