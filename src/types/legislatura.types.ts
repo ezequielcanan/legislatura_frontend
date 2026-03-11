@@ -72,6 +72,20 @@ export interface LibroExpediente {
   tipo: string;
 }
 
+export interface ComisionRef {
+  idComision: number;
+  comisionDes: string;
+  comisionUrl: string;
+  orden: number;
+  giroTipoDes: string;
+}
+
+export interface ComisionItem {
+  idComision: number;
+  nombre: string;
+  url: string;
+}
+
 export interface Expediente {
   _id: string;
   expedienteId: number;
@@ -95,11 +109,21 @@ export interface Expediente {
   aiCategory?: string;
   libros?: LibroExpediente[];
   votaciones?: any;
+  comisiones?: ComisionRef[];
+  comisionesUpdatedAt?: string;
+  ubicacionActual?: string;
+  ubicacionActualUpdatedAt?: string;
   status: ExpedienteStatus;
   embeddingCount?: number;
   processedAt?: string;
   createdAt?: string;
   updatedAt?: string;
+  // BAE fields
+  baeSource?: boolean;
+  baeReferences?: Array<{ nroOrden: number; anoParlamentario: number }>;
+  baeGrupo?: string;
+  baeOrden?: number;
+  baeDescripcion?: string;
 }
 
 // ===== Search & Filters =====
@@ -108,6 +132,7 @@ export interface SearchExpedientesParams {
   query?: string;
   tipo?: string;
   estado?: string;
+  comisionUrl?: string;
   bloqueId?: number;
   legisladorId?: number;
   tag?: string;
@@ -125,6 +150,22 @@ export interface FechaProyectos {
 }
 
 // ===== Stats =====
+
+// ===== BAE =====
+
+export interface BaeRecord {
+  _id: string;
+  baeId: number;
+  nroOrden: number;
+  anoParlamentario: number;
+  fechaDesde: string;
+  fechaDesdeDate: string;
+  fechaHasta: string;
+  fechaHastaDate: string;
+  totalItems: number;
+  newExpedientesAdded: number;
+  syncedAt: string;
+}
 
 export interface LegislaturaStats {
   totalExpedientes: number;

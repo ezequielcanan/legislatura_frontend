@@ -23,6 +23,7 @@ export function Navbar() {
   const navLinks = [
     { to: "/home", label: "Inicio" },
     { to: "/proyectos", label: "Proyectos" },
+    { to: "/bae", label: "BAE" },
     { to: "/legisladores", label: "Legisladores" },
     { to: "/partidos", label: "Partidos" },
     { to: "/consultas", label: "Consultas IA" },

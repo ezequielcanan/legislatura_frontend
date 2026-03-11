@@ -6,6 +6,8 @@ import type {
   SearchExpedientesParams,
   FechaProyectos,
   LegislaturaStats,
+  ComisionItem,
+  BaeRecord,
   ApiResponse,
 } from '../types/legislatura.types';
 
@@ -38,6 +40,11 @@ export async function getLegisladorById(id: number): Promise<Legislador> {
 
 // ─── Expedientes ─────────────────────────────────
 
+export async function getComisiones(): Promise<ComisionItem[]> {
+  const { data } = await axiosInstance.get<ApiResponse<ComisionItem[]>>('/legislatura/comisiones');
+  return data.data;
+}
+
 export async function searchExpedientes(
   params: SearchExpedientesParams = {},
 ): Promise<{ data: Expediente[]; total: number }> {
@@ -69,6 +76,26 @@ export async function getExpedientesByLegislador(legisladorId: number): Promise<
 export async function getStats(): Promise<LegislaturaStats> {
   const { data } = await axiosInstance.get<ApiResponse<LegislaturaStats>>('/legislatura/stats');
   return data.data;
+}
+
+// ─── BAE ─────────────────────────────────────────
+
+export async function getBaes(anoParlamentario?: number): Promise<BaeRecord[]> {
+  const params = anoParlamentario ? { anoParlamentario } : {};
+  const { data } = await axiosInstance.get<ApiResponse<BaeRecord[]>>('/legislatura/bae', { params });
+  return data.data;
+}
+
+export async function getBaeWithExpedientes(
+  nroOrden: number,
+  anoParlamentario: number,
+  params: SearchExpedientesParams = {},
+): Promise<{ bae: BaeRecord | null; expedientes: Expediente[]; total: number }> {
+  const { data } = await axiosInstance.get(
+    `/legislatura/bae/${nroOrden}/${anoParlamentario}`,
+    { params },
+  );
+  return { bae: data.bae, expedientes: data.expedientes, total: data.total };
 }
 
 // ─── Chat (SSE streaming) ────────────────────────

@@ -11,6 +11,7 @@ import { Legisladores } from './pages/Legisladores';
 import { LegisladorDetalle } from './pages/LegisladorDetalle';
 import { Partidos } from './pages/Partidos';
 import { Consultas } from './pages/Consultas';
+import { BAE } from './pages/BAE';
 import { AdminPanel } from './pages/AdminPanel';
 import { AccessDenied } from './pages/AccessDenied';
 
@@ -115,6 +116,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ProyectoDetalle />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/bae"
+        element={
+          <ProtectedRoute>
+            <BAE />
           </ProtectedRoute>
         }
       />

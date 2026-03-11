@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
   ArrowLeft, FileText, Calendar, Tag, Users,
-  Sparkles, MapPin, ScrollText, Download, Loader2, AlertCircle,
+  Sparkles, MapPin, ScrollText, Download, Loader2, AlertCircle, Building2,
 } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
 import Container from '../components/containers/Container';
@@ -279,8 +279,8 @@ export function ProyectoDetalle() {
                 <div className="flex items-start gap-3">
                   <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                   <div>
-                    <div className="text-xs text-muted-foreground uppercase tracking-wide">Ubicación</div>
-                    <div className="font-medium">{proyecto.ubicacion}: {proyecto.estado}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide">Ubicación actual</div>
+                    <div className="font-medium">{proyecto.ubicacionActual || proyecto.ubicacion || proyecto.estado}</div>
                   </div>
                 </div>
                 {proyecto.anioParlamentario && (
@@ -335,6 +335,32 @@ export function ProyectoDetalle() {
                         </div>
                       </div>
                     </Link>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Comisiones */}
+            {proyecto.comisiones && proyecto.comisiones.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-background/80 backdrop-blur-lg rounded-2xl border border-border/50 shadow-lg p-6"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <Building2 className="w-5 h-5 text-violet-600" />
+                  <h2 className="text-lg font-semibold">Comisiones</h2>
+                </div>
+                <div className="flex flex-col gap-y-2">
+                  {proyecto.comisiones.map((c) => (
+                    <div
+                      key={c.idComision}
+                      className="p-3 bg-muted/20 rounded-xl border border-border/30"
+                    >
+                      <div className="font-medium text-sm">{c.comisionDes}</div>
+                      <div className="text-xs text-muted-foreground mt-1">{c.giroTipoDes}</div>
+                    </div>
                   ))}
                 </div>
               </motion.div>

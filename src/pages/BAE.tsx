@@ -4,13 +4,20 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   Search, Filter, FileText,
   Tag, Users, X, Sparkles, Loader2,
-  ChevronLeft, ChevronRight, Calendar, ChevronsLeft, ChevronsRight,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  BookOpen,
 } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
 import Title from '../components/layout/Title';
 import Container from '../components/containers/Container';
-import { searchExpedientes, getBloques, getLegisladores, getComisiones } from '../services/legislatura.service';
-import type { Expediente, Bloque, Legislador, ComisionItem } from '../types/legislatura.types';
+import {
+  getBaes,
+  getBaeWithExpedientes,
+  getBloques,
+  getLegisladores,
+  getComisiones,
+} from '../services/legislatura.service';
+import type { Expediente, Bloque, Legislador, ComisionItem, BaeRecord } from '../types/legislatura.types';
 
 const PAGE_SIZE = 10;
 
@@ -31,37 +38,6 @@ const categoriaIcon: Record<string, string> = {
   'REMITE ACTUACIONES': '📤',
   'NO DEFINIDO': '❓',
 };
-
-// ─── Helpers ─────────────────────────────────────
-
-function formatDateISO(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function formatDateDisplay(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString('es-AR', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-}
-
-function addDays(dateStr: string, days: number): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  date.setDate(date.getDate() + days);
-  return formatDateISO(date);
-}
-
-function isToday(dateStr: string): boolean {
-  return dateStr === formatDateISO(new Date());
-}
 
 // ─── Pagination ──────────────────────────────────
 
@@ -143,12 +119,11 @@ function Pagination({
   );
 }
 
-// ─── ProyectoCard ────────────────────────────────
+// ─── BaeCard ─────────────────────────────────────
 
-function ProyectoCard({ proyecto, index }: { proyecto: Expediente; index: number }) {
+function BaeCard({ proyecto, index }: { proyecto: Expediente; index: number }) {
   const resumen = proyecto.aiSummary || proyecto.sumario;
   const tags = proyecto.aiTags || [];
-
 
   return (
     <motion.div
@@ -167,6 +142,16 @@ function ProyectoCard({ proyecto, index }: { proyecto: Expediente; index: number
                 <span className="text-xs font-mono text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
                   {proyecto.numero}
                 </span>
+                {proyecto.baeSource && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                    BAE
+                  </span>
+                )}
+                {proyecto.baeGrupo && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    {proyecto.baeGrupo}
+                  </span>
+                )}
                 {proyecto.comisiones && proyecto.comisiones.length > 0 && (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-500/10 text-violet-600 dark:text-violet-400">
                     {proyecto.comisiones[0].comisionDes}
@@ -181,7 +166,9 @@ function ProyectoCard({ proyecto, index }: { proyecto: Expediente; index: number
             </div>
 
             {/* Title */}
-            <h3 className="text-lg font-semibold mb-3 leading-tight group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">{proyecto.titulo}</h3>
+            <h3 className="text-lg font-semibold mb-3 leading-tight group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
+              {proyecto.titulo}
+            </h3>
           </div>
         </Link>
 
@@ -228,81 +215,49 @@ function ProyectoCard({ proyecto, index }: { proyecto: Expediente; index: number
             ))}
           </div>
         )}
-
-        {/* Expand toggle for sumario when aiSummary exists */}
-        {/*proyecto.aiSummary && proyecto.sumario && (
-          <>
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="mt-3 flex items-center gap-1 text-sm text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
-            >
-              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              {expanded ? 'Ocultar sumario' : 'Ver sumario original'}
-            </button>
-
-            <AnimatePresence>
-              {expanded && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="mt-3 p-4 bg-muted/30 rounded-xl text-sm leading-relaxed border border-border/50">
-                    {proyecto.sumario}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </>
-        )*/}
       </div>
     </motion.div>
   );
 }
 
-export function Proyectos() {
+// ─── Main BAE Page ───────────────────────────────
+
+export function BAE() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Filter state from URL query params
+  // Current BAE navigation
+  const currentNro = parseInt(searchParams.get('nro') || '0', 10);
+  const currentAno = parseInt(searchParams.get('ano') || String(new Date().getFullYear()), 10);
+
+  // Filters
   const busqueda = searchParams.get('q') || '';
   const categoriaFiltro = searchParams.get('tipo') || 'Todos';
   const comisionFiltro = searchParams.get('comision') || 'Todos';
   const bloqueFiltro = searchParams.get('bloque') || 'Todos';
   const legisladorFiltro = searchParams.get('legislador') || 'Todos';
-  const dateFrom = searchParams.get('dateFrom') || '';
-  const dateTo = searchParams.get('dateTo') || '';
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
-
-  // Day-by-day navigation date (defaults to today)
-  const selectedDate = searchParams.get('fecha') || formatDateISO(new Date());
-
-  // Mode: 'day' for day-by-day browsing, 'range' for custom date range
-  const dateMode = searchParams.get('modo') || 'day';
 
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [proyectos, setProyectos] = useState<Expediente[]>([]);
   const [totalResultados, setTotalResultados] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentBae, setCurrentBae] = useState<BaeRecord | null>(null);
 
-  // Local state for date range inputs to avoid resetting while typing
-  const [localDateFrom, setLocalDateFrom] = useState(dateFrom);
-  const [localDateTo, setLocalDateTo] = useState(dateTo);
+  // All available BAEs for navigation
+  const [allBaes, setAllBaes] = useState<BaeRecord[]>([]);
+  const [baesLoaded, setBaesLoaded] = useState(false);
 
   // Reference data
   const [bloques, setBloques] = useState<Bloque[]>([]);
   const [legisladoresList, setLegisladoresList] = useState<Legislador[]>([]);
   const [comisionesList, setComisionesList] = useState<ComisionItem[]>([]);
 
-  // Debounce timers
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dateFromDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dateToDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(totalResultados / PAGE_SIZE));
 
-  // Helper to update a single search param
+  // Helper to update search params
   const setParam = useCallback(
     (key: string, value: string) => {
       setSearchParams((prev) => {
@@ -312,28 +267,7 @@ export function Proyectos() {
         } else {
           next.set(key, value);
         }
-        // Reset page when changing filters
-        if (key !== 'page') {
-          next.delete('page');
-        }
-        return next;
-      });
-    },
-    [setSearchParams],
-  );
-
-  const setMultipleParams = useCallback(
-    (params: Record<string, string>) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        for (const [key, value] of Object.entries(params)) {
-          if (value === '' || value === 'Todos') {
-            next.delete(key);
-          } else {
-            next.set(key, value);
-          }
-        }
-        next.delete('page');
+        if (key !== 'page') next.delete('page');
         return next;
       });
     },
@@ -355,85 +289,82 @@ export function Proyectos() {
     [setParam, setSearchParams],
   );
 
-  // Day navigation
-  const goToPrevDay = () => setMultipleParams({ fecha: addDays(selectedDate, -1), modo: 'day' });
-  const goToNextDay = () => {
-    const next = addDays(selectedDate, 1);
-    const today = formatDateISO(new Date());
-    if (next <= today) {
-      setMultipleParams({ fecha: next, modo: 'day' });
-    }
-  };
-  const goToToday = () => setMultipleParams({ fecha: formatDateISO(new Date()), modo: 'day' });
-
-  const switchToRange = () => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set('modo', 'range');
-      next.delete('fecha');
-      next.delete('page');
-      return next;
-    });
-  };
-
-  const switchToDay = () => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set('modo', 'day');
-      if (!next.get('fecha')) next.set('fecha', formatDateISO(new Date()));
-      next.delete('dateFrom');
-      next.delete('dateTo');
-      next.delete('page');
-      return next;
-    });
-  };
-
   const filtrosActivos = categoriaFiltro !== 'Todos' || comisionFiltro !== 'Todos' || bloqueFiltro !== 'Todos' || legisladorFiltro !== 'Todos' || busqueda.length > 0;
 
-  // Sync local date state when URL params change externally
-  useEffect(() => { setLocalDateFrom(dateFrom); }, [dateFrom]);
-  useEffect(() => { setLocalDateTo(dateTo); }, [dateTo]);
-
-  // Debounced date setters
-  const setDebouncedDateFrom = useCallback(
-    (value: string) => {
-      setLocalDateFrom(value);
-      if (dateFromDebounceRef.current) clearTimeout(dateFromDebounceRef.current);
-      dateFromDebounceRef.current = setTimeout(() => setParam('dateFrom', value), 600);
-    },
-    [setParam],
-  );
-  const setDebouncedDateTo = useCallback(
-    (value: string) => {
-      setLocalDateTo(value);
-      if (dateToDebounceRef.current) clearTimeout(dateToDebounceRef.current);
-      dateToDebounceRef.current = setTimeout(() => setParam('dateTo', value), 600);
-    },
-    [setParam],
+  // Find current index in the sorted BAE list
+  const currentBaeIndex = allBaes.findIndex(
+    (b) => b.nroOrden === currentNro && b.anoParlamentario === currentAno,
   );
 
-  // Load bloques and legisladores on mount
+  // Navigation: BAEs are sorted desc (newest first), so "prev" means older (higher index), "next" means newer (lower index)
+  const canGoNewer = currentBaeIndex > 0;
+  const canGoOlder = currentBaeIndex < allBaes.length - 1 && currentBaeIndex >= 0;
+
+  const goToNewer = () => {
+    if (!canGoNewer) return;
+    const newer = allBaes[currentBaeIndex - 1];
+    setSearchParams({
+      nro: String(newer.nroOrden),
+      ano: String(newer.anoParlamentario),
+    });
+  };
+
+  const goToOlder = () => {
+    if (!canGoOlder) return;
+    const older = allBaes[currentBaeIndex + 1];
+    setSearchParams({
+      nro: String(older.nroOrden),
+      ano: String(older.anoParlamentario),
+    });
+  };
+
+  const goToLatest = () => {
+    if (allBaes.length > 0) {
+      const latest = allBaes[0];
+      setSearchParams({
+        nro: String(latest.nroOrden),
+        ano: String(latest.anoParlamentario),
+      });
+    }
+  };
+
+  // Load all BAEs and reference data on mount
   useEffect(() => {
-    async function loadReferenceData() {
+    async function loadInitialData() {
       try {
-        const [bloquesData, legisladoresData, comisionesData] = await Promise.all([
+        const [baesData, bloquesData, legisladoresData, comisionesData] = await Promise.all([
+          getBaes(),
           getBloques(),
           getLegisladores(),
           getComisiones(),
         ]);
 
+        setAllBaes(baesData);
         setBloques(bloquesData);
         setLegisladoresList(legisladoresData);
         setComisionesList(comisionesData);
+        setBaesLoaded(true);
+
+        // If no BAE selected in URL, navigate to latest
+        if (!searchParams.get('nro') && baesData.length > 0) {
+          const latest = baesData[0];
+          setSearchParams({
+            nro: String(latest.nroOrden),
+            ano: String(latest.anoParlamentario),
+          }, { replace: true });
+        }
       } catch (err) {
-        console.error('Error loading reference data:', err);
+        console.error('Error loading BAE data:', err);
+        setError('Error al cargar los datos de BAE.');
+        setBaesLoaded(true);
       }
     }
-    loadReferenceData();
+    loadInitialData();
   }, []);
 
-  // Fetch expedientes when filters change
+  // Fetch BAE expedientes when BAE selection or filters change
   useEffect(() => {
+    if (!currentNro || !currentAno || !baesLoaded) return setLoading(false);
     let cancelled = false;
 
     async function fetchData() {
@@ -446,28 +377,18 @@ export function Proyectos() {
         if (comisionFiltro !== 'Todos') params.comisionUrl = comisionFiltro;
         if (bloqueFiltro !== 'Todos') params.bloqueId = Number(bloqueFiltro);
         if (legisladorFiltro !== 'Todos') params.legisladorId = Number(legisladorFiltro);
-
-        // Date filtering
-        if (dateMode === 'day') {
-          params.dateFrom = selectedDate;
-          params.dateTo = selectedDate;
-        } else if (dateMode === 'range') {
-          if (dateFrom) params.dateFrom = dateFrom;
-          if (dateTo) params.dateTo = dateTo;
-        }
-
-        // Pagination
         params.skip = (currentPage - 1) * PAGE_SIZE;
 
-        const result = await searchExpedientes(params);
+        const result = await getBaeWithExpedientes(currentNro, currentAno, params);
         if (!cancelled) {
-          setProyectos(result.data);
+          setProyectos(result.expedientes);
           setTotalResultados(result.total);
+          setCurrentBae(result.bae);
         }
       } catch (err) {
         if (!cancelled) {
-          console.error('Error searching expedientes:', err);
-          setError('Error al cargar los proyectos. Intentá de nuevo más tarde.');
+          console.error('Error fetching BAE expedientes:', err);
+          setError('Error al cargar los expedientes del BAE.');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -476,15 +397,25 @@ export function Proyectos() {
 
     fetchData();
     return () => { cancelled = true; };
-  }, [busqueda, categoriaFiltro, comisionFiltro, bloqueFiltro, legisladorFiltro, selectedDate, dateFrom, dateTo, dateMode, currentPage]);
+  }, [currentNro, currentAno, busqueda, categoriaFiltro, comisionFiltro, bloqueFiltro, legisladorFiltro, currentPage, baesLoaded]);
 
   const limpiarFiltros = () => {
-    setSearchParams({ fecha: formatDateISO(new Date()), modo: 'day' });
+    setSearchParams({
+      nro: String(currentNro),
+      ano: String(currentAno),
+    });
   };
 
   const handlePageChange = (page: number) => {
     setParam('page', String(page));
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const formatBaeDate = (dateStr: string | undefined) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
   };
 
   return (
@@ -493,13 +424,13 @@ export function Proyectos() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <Title fontSize="text-3xl" style="mb-2">Proyectos de Ley</Title>
+          <Title fontSize="text-3xl" style="mb-2">BAE</Title>
           <p className="text-muted-foreground">
-            Explorá los proyectos presentados en la Legislatura de CABA
+            Boletín de Asuntos Entrados — Navegá los expedientes por boletín
           </p>
         </motion.div>
 
-        {/* Date Navigation Bar */}
+        {/* BAE Navigation Bar */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -507,123 +438,76 @@ export function Proyectos() {
           className="mb-6"
         >
           <div className="bg-background/80 backdrop-blur-lg rounded-2xl border border-border/50 shadow-lg p-4">
-            {/* Mode Tabs */}
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
               <button
-                onClick={switchToDay}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${dateMode === 'day'
-                    ? 'bg-violet-600 text-white shadow-md'
-                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                  }`}
+                onClick={goToOlder}
+                disabled={!canGoOlder}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl bg-muted/50 hover:bg-muted border border-border/50 transition-colors text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                Por día
+                <ChevronLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">BAE anterior</span>
               </button>
-              <button
-                onClick={switchToRange}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${dateMode === 'range'
-                    ? 'bg-violet-600 text-white shadow-md'
-                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                  }`}
-              >
-                Rango de fechas
-              </button>
-            </div>
 
-            {dateMode === 'day' ? (
-              /* Day-by-day navigation */
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <button
-                  onClick={goToPrevDay}
-                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-muted/50 hover:bg-muted border border-border/50 transition-colors text-sm font-medium"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  <span className="hidden sm:inline">Día anterior</span>
-                </button>
-
-                <div className="flex items-center gap-3 text-center">
-                  <Calendar className="w-5 h-5 text-violet-500" />
-                  <div>
-                    <p className="text-base sm:text-lg font-semibold capitalize">
-                      {formatDateDisplay(selectedDate)}
-                    </p>
-                  </div>
-                  <label className="cursor-pointer">
-                    <input
-                      type="date"
-                      value={selectedDate}
-                      max={formatDateISO(new Date())}
-                      onChange={(e) => {
-                        if (e.target.value) setMultipleParams({ fecha: e.target.value, modo: 'day' });
-                      }}
-                      className="sr-only"
-                    />
-                  </label>
+              <div className="flex flex-col items-center gap-1 text-center">
+                <div className="flex items-center gap-3">
+                  <BookOpen className="w-5 h-5 text-violet-500" />
+                  <p className="text-base sm:text-lg font-semibold">
+                    BAE N° {currentNro} — {currentAno}
+                  </p>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  {!isToday(selectedDate) && (
-                    <button
-                      onClick={goToToday}
-                      className="px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 transition-colors text-sm font-medium"
-                    >
-                      Hoy
-                    </button>
-                  )}
-                  <button
-                    onClick={goToNextDay}
-                    disabled={isToday(selectedDate)}
-                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-muted/50 hover:bg-muted border border-border/50 transition-colors text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <span className="hidden sm:inline">Día siguiente</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
+                {currentBae && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatBaeDate(currentBae.fechaDesdeDate)} — {formatBaeDate(currentBae.fechaHastaDate)}
+                    {' · '}
+                    {currentBae.totalItems} expedientes
+                  </p>
+                )}
               </div>
-            ) : (
-              /* Date range picker */
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-muted-foreground font-medium whitespace-nowrap">Desde:</label>
-                  <input
-                    type="date"
-                    value={localDateFrom}
-                    max={localDateTo || formatDateISO(new Date())}
-                    onChange={(e) => setDebouncedDateFrom(e.target.value)}
-                    className="px-3 py-2 rounded-xl bg-muted/50 border border-border focus:border-violet-500 outline-none text-sm"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-muted-foreground font-medium whitespace-nowrap">Hasta:</label>
-                  <input
-                    type="date"
-                    value={localDateTo}
-                    min={localDateFrom}
-                    max={formatDateISO(new Date())}
-                    onChange={(e) => setDebouncedDateTo(e.target.value)}
-                    className="px-3 py-2 rounded-xl bg-muted/50 border border-border focus:border-violet-500 outline-none text-sm"
-                  />
-                </div>
-                {(localDateFrom || localDateTo) && (
+
+              <div className="flex items-center gap-2">
+                {canGoNewer && currentBaeIndex !== 0 && (
                   <button
-                    onClick={() => {
-                      if (dateFromDebounceRef.current) clearTimeout(dateFromDebounceRef.current);
-                      if (dateToDebounceRef.current) clearTimeout(dateToDebounceRef.current);
-                      setLocalDateFrom('');
-                      setLocalDateTo('');
-                      setSearchParams((prev) => {
-                        const next = new URLSearchParams(prev);
-                        next.delete('dateFrom');
-                        next.delete('dateTo');
-                        next.delete('page');
-                        return next;
-                      });
-                    }}
-                    className="flex items-center gap-1 text-sm text-violet-600 dark:text-violet-400 hover:text-violet-700 transition-colors"
+                    onClick={goToLatest}
+                    className="px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 transition-colors text-sm font-medium"
                   >
-                    <X className="w-3 h-3" />
-                    Limpiar fechas
+                    Último
                   </button>
                 )}
+                <button
+                  onClick={goToNewer}
+                  disabled={!canGoNewer}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-muted/50 hover:bg-muted border border-border/50 transition-colors text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <span className="hidden sm:inline">BAE siguiente</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick BAE selector */}
+            {allBaes.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border/30">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">Ir a:</span>
+                  {allBaes.map((b) => (
+                    <button
+                      key={`${b.nroOrden}-${b.anoParlamentario}`}
+                      onClick={() =>
+                        setSearchParams({
+                          nro: String(b.nroOrden),
+                          ano: String(b.anoParlamentario),
+                        })
+                      }
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                        b.nroOrden === currentNro && b.anoParlamentario === currentAno
+                          ? 'bg-violet-600 text-white shadow-md'
+                          : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {b.nroOrden}-{b.anoParlamentario}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -747,11 +631,11 @@ export function Proyectos() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Results count & page info */}
+        {/* Results count */}
         {!loading && !error && (
           <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
             <span>
-              {totalResultados} proyecto{totalResultados !== 1 ? 's' : ''} encontrado{totalResultados !== 1 ? 's' : ''}
+              {totalResultados} expediente{totalResultados !== 1 ? 's' : ''} en este BAE
             </span>
             {totalPages > 1 && (
               <span>
@@ -761,15 +645,15 @@ export function Proyectos() {
           </div>
         )}
 
-        {/* Loading spinner */}
+        {/* Loading */}
         {loading && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-20">
             <Loader2 className="w-10 h-10 text-violet-500 animate-spin mb-4" />
-            <p className="text-muted-foreground">Cargando proyectos...</p>
+            <p className="text-muted-foreground">Cargando expedientes del BAE...</p>
           </motion.div>
         )}
 
-        {/* Error state */}
+        {/* Error */}
         {!loading && error && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
             <FileText className="w-12 h-12 mx-auto mb-4 text-red-400" />
@@ -783,37 +667,35 @@ export function Proyectos() {
           </motion.div>
         )}
 
-        {/* Projects flat list */}
+        {/* No BAEs available */}
+        {!loading && !error && allBaes.length === 0 && baesLoaded && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
+            <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+            <p className="text-lg text-muted-foreground">
+              No hay BAEs sincronizados aún
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Los BAEs se sincronizan automáticamente o pueden ser cargados por un administrador
+            </p>
+          </motion.div>
+        )}
+
+        {/* Results list */}
         {!loading && !error && (
           <>
             <div className="space-y-4">
               {proyectos?.map((proyecto, idx) => (
-                <ProyectoCard key={proyecto.expedienteId} proyecto={proyecto} index={idx} />
+                <BaeCard key={proyecto.expedienteId} proyecto={proyecto} index={idx} />
               ))}
 
-              {proyectos?.length === 0 && (
+              {proyectos?.length === 0 && allBaes.length > 0 && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
                   <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
                   <p className="text-lg text-muted-foreground">
-                    No se encontraron proyectos {dateMode === 'day' ? `para el ${formatDateDisplay(selectedDate)}` : 'con los filtros seleccionados'}
+                    No se encontraron expedientes en el BAE N° {currentNro} — {currentAno}
+                    {filtrosActivos ? ' con los filtros seleccionados' : ''}
                   </p>
-                  {dateMode === 'day' ? (
-                    <div className="mt-4 flex items-center justify-center gap-3">
-                      <button
-                        onClick={goToPrevDay}
-                        className="text-violet-600 dark:text-violet-400 hover:underline text-sm"
-                      >
-                        ← Probar día anterior
-                      </button>
-                      <span className="text-muted-foreground">|</span>
-                      <button
-                        onClick={goToToday}
-                        className="text-violet-600 dark:text-violet-400 hover:underline text-sm"
-                      >
-                        Ir a hoy
-                      </button>
-                    </div>
-                  ) : (
+                  {filtrosActivos && (
                     <button
                       onClick={limpiarFiltros}
                       className="mt-4 text-violet-600 dark:text-violet-400 hover:underline text-sm"
@@ -825,7 +707,6 @@ export function Proyectos() {
               )}
             </div>
 
-            {/* Pagination */}
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
