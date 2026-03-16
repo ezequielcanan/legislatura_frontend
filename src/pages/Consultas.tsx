@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Send, Sparkles, Bot, User, Loader2, Info, Plus,
   MessageSquare, Trash2, PanelLeftClose, PanelLeftOpen, X,
+  FileText, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Navbar } from '../components/layout/Navbar';
@@ -11,9 +12,54 @@ import {
   sendChatMessage, createConversation, getConversations,
   getConversationMessages, deleteConversation,
 } from '../services/legislatura.service';
-import type { MensajeChat } from '../types/legislatura.types';
+import type { MensajeChat, RagSource } from '../types/legislatura.types';
 
 const HISTORY_PAGE_SIZE = 50;
+
+function SourcesPanel({ sources }: { sources: RagSource[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-xs text-violet-600 dark:text-violet-400 hover:underline"
+      >
+        <FileText className="w-3 h-3" />
+        <span>{sources.length} fuente{sources.length !== 1 ? 's' : ''} consultada{sources.length !== 1 ? 's' : ''}</span>
+        {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+      </button>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-2 space-y-1.5">
+              {sources.map((s, i) => (
+                <div
+                  key={`${s.ref}-${i}`}
+                  className="text-xs p-2 rounded-lg bg-violet-500/5 border border-violet-500/10"
+                >
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="font-mono text-violet-600 dark:text-violet-400 font-semibold">[{s.ref}]</span>
+                    <span className="font-medium">Exp. {s.numero}</span>
+                    <span className="text-muted-foreground">({s.tipo})</span>
+                  </div>
+                  {s.preview && (
+                    <p className="text-muted-foreground line-clamp-2">{s.preview}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 export function Consultas() {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([]);
@@ -24,6 +70,7 @@ export function Consultas() {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pendingSourcesRef = useRef<RagSource[]>([]);
 
   // Conversation history state
   const [showSidebar, setShowSidebar] = useState(false);
@@ -175,6 +222,7 @@ export function Consultas() {
     try {
       let convId = await ensureConversation();
       let accumulated = '';
+      pendingSourcesRef.current = [];
 
       try {
         await sendChatMessage(convId, pregunta, {
@@ -182,22 +230,28 @@ export function Consultas() {
             accumulated += token;
             setStreamingContent(accumulated);
           },
+          onSources: (sources) => {
+            pendingSourcesRef.current = sources;
+          },
           onDone: () => {
             const aiMsg: MensajeChat = {
               id: `msg-${Date.now()}-ai`,
               rol: 'asistente',
               contenido: accumulated,
               timestamp: new Date().toISOString(),
+              sources: pendingSourcesRef.current.length > 0 ? pendingSourcesRef.current : undefined,
             };
             setMensajes((prev) => [...prev, aiMsg]);
             setStreamingContent('');
             setIsLoading(false);
+            pendingSourcesRef.current = [];
           },
           onError: (err) => {
             console.error('Chat stream error:', err);
             setError('Error al obtener la respuesta. Intentá de nuevo.');
             setStreamingContent('');
             setIsLoading(false);
+            pendingSourcesRef.current = [];
           },
         });
       } catch (chatErr: any) {
@@ -206,11 +260,15 @@ export function Consultas() {
           console.log('Conversación no encontrada, creando nueva...');
           setConversationId(null);
           convId = await ensureConversation();
+          pendingSourcesRef.current = [];
           
           await sendChatMessage(convId, pregunta, {
             onToken: (token) => {
               accumulated += token;
               setStreamingContent(accumulated);
+            },
+            onSources: (sources) => {
+              pendingSourcesRef.current = sources;
             },
             onDone: () => {
               const aiMsg: MensajeChat = {
@@ -218,16 +276,19 @@ export function Consultas() {
                 rol: 'asistente',
                 contenido: accumulated,
                 timestamp: new Date().toISOString(),
+                sources: pendingSourcesRef.current.length > 0 ? pendingSourcesRef.current : undefined,
               };
               setMensajes((prev) => [...prev, aiMsg]);
               setStreamingContent('');
               setIsLoading(false);
+              pendingSourcesRef.current = [];
             },
             onError: (err) => {
               console.error('Chat stream error:', err);
               setError('Error al obtener la respuesta. Intentá de nuevo.');
               setStreamingContent('');
               setIsLoading(false);
+              pendingSourcesRef.current = [];
             },
           });
         } else {
@@ -516,6 +577,11 @@ export function Consultas() {
                     <div className={`text-xs text-muted-foreground mt-1 ${msg.rol === 'usuario' ? 'text-right' : ''}`}>
                       {new Date(msg.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                     </div>
+
+                    {/* RAG Sources (collapsible) */}
+                    {msg.rol === 'asistente' && msg.sources && msg.sources.length > 0 && (
+                      <SourcesPanel sources={msg.sources} />
+                    )}
                   </div>
 
                   {msg.rol === 'usuario' && (

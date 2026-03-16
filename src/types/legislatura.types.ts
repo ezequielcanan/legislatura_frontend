@@ -179,12 +179,21 @@ export interface LegislaturaStats {
 
 // ===== Chat =====
 
+export interface RagSource {
+  ref: string;
+  numero: string;
+  tipo: string;
+  preview: string;
+  score: number;
+}
+
 export interface MensajeChat {
   id: string;
   rol: 'usuario' | 'asistente';
   contenido: string;
   timestamp: string;
   expedientesReferenciados?: Expediente[];
+  sources?: RagSource[];
 }
 
 export interface ConversacionChat {

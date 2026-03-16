@@ -26,7 +26,7 @@ export function Navbar() {
     { to: "/bae", label: "BAE" },
     { to: "/legisladores", label: "Legisladores" },
     { to: "/partidos", label: "Partidos" },
-    { to: "/consultas", label: "Consultas IA" },
+    { to: "/consultas", label: "Chat" },
   ];
 
   return (

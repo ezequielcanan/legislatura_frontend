@@ -100,10 +100,19 @@ export async function getBaeWithExpedientes(
 
 // ─── Chat (SSE streaming) ────────────────────────
 
+export interface RagSource {
+  ref: string;
+  numero: string;
+  tipo: string;
+  preview: string;
+  score: number;
+}
+
 export interface ChatStreamCallbacks {
   onToken: (token: string) => void;
   onDone: () => void;
   onError: (error: Error) => void;
+  onSources?: (sources: RagSource[]) => void;
 }
 
 export async function sendChatMessage(
@@ -160,7 +169,12 @@ export async function sendChatMessage(
                 callbacks.onError(new Error(parsed.error));
                 return { conversationId };
               }
-              callbacks.onToken(parsed.chunk ?? payload);
+              // Handle sources event from Python RAG pipeline
+              if (parsed.sources && Array.isArray(parsed.sources)) {
+                callbacks.onSources?.(parsed.sources);
+              } else {
+                callbacks.onToken(parsed.chunk ?? payload);
+              }
             } catch {
               callbacks.onToken(payload);
             }
