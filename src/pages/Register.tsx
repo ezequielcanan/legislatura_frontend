@@ -2,20 +2,42 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'motion/react';
-import { Mail, Lock, User, ArrowRight, Sparkles } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Sparkles, Eye, EyeOff } from 'lucide-react';
 import logo from '../assets/images/image.png';
 
 export function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  const validatePassword = (pwd: string): string | null => {
+    if (pwd.length < 8) return 'La contraseña debe tener al menos 8 caracteres.';
+    if (!/[A-Z]/.test(pwd)) return 'La contraseña debe contener al menos una letra mayúscula.';
+    if (!/[a-z]/.test(pwd)) return 'La contraseña debe contener al menos una letra minúscula.';
+    if (!/[^A-Za-z0-9]/.test(pwd)) return 'La contraseña debe contener al menos un carácter especial (ej: . ! @ # $).';
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await register({ password, email, username: name });
-    navigate('/home');
+    setError(null);
+    const pwdError = validatePassword(password);
+    if (pwdError) {
+      setPasswordError(pwdError);
+      return;
+    }
+    setPasswordError(null);
+    try {
+      await register({ password, email, username: name });
+      navigate('/home');
+    } catch (err: any) {
+      setError(err.message || 'Error al registrarse');
+    }
   };
 
   return (
@@ -113,14 +135,33 @@ export function Register() {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (passwordError) setPasswordError(validatePassword(e.target.value));
+                  }}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-input-background dark:bg-muted border border-border focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all outline-none"
+                  className={`w-full pl-10 pr-10 py-3 rounded-xl bg-input-background dark:bg-muted border ${passwordError ? 'border-red-500' : 'border-border'} focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all outline-none`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
+              {passwordError && (
+                <p className="mt-1.5 text-xs text-red-500 dark:text-red-400">{passwordError}</p>
+              )}
             </div>
+
+            {error && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-600 dark:text-red-400">
+                {error}
+              </div>
+            )}
 
             <motion.button
               whileHover={{ scale: 1.02 }}
@@ -142,11 +183,11 @@ export function Register() {
             </p>
           </div>
 
-          <div className="mt-6 p-4 rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20">
+          {/*<div className="mt-6 p-4 rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20">
             <p className="text-xs text-muted-foreground text-center">
               <strong>Demo:</strong> Prueba con aaa@gmail.com (admin), bbb@gmail.com (user), o ccc@gmail.com (sin acceso)
             </p>
-          </div>
+          </div>*/}
         </motion.div>
       </motion.div>
     </div>

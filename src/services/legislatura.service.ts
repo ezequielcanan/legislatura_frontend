@@ -33,6 +33,11 @@ export async function getLegisladores(bloqueId?: number): Promise<Legislador[]> 
   return data.data;
 }
 
+export async function getLegisladoresInactivos(): Promise<Legislador[]> {
+  const { data } = await axiosInstance.get<ApiResponse<Legislador[]>>('/legislatura/legisladores/inactivos');
+  return data.data;
+}
+
 export async function getLegisladorById(id: number): Promise<Legislador> {
   const { data } = await axiosInstance.get<ApiResponse<Legislador>>(`/legislatura/legisladores/${id}`);
   return data.data;
@@ -42,6 +47,26 @@ export async function getLegisladorById(id: number): Promise<Legislador> {
 
 export async function getComisiones(): Promise<ComisionItem[]> {
   const { data } = await axiosInstance.get<ApiResponse<ComisionItem[]>>('/legislatura/comisiones');
+  return data.data;
+}
+
+export async function getDistinctAutores(
+  params: SearchExpedientesParams = {},
+): Promise<Array<{ legisladorId: number; nombre: string; apellido: string }>> {
+  const { data } = await axiosInstance.get<ApiResponse<Array<{ legisladorId: number; nombre: string; apellido: string }>>>(
+    '/legislatura/expedientes/autores',
+    { params },
+  );
+  return data.data;
+}
+
+export async function getDistinctCoautores(
+  params: SearchExpedientesParams = {},
+): Promise<Array<{ legisladorId: number; nombre: string; apellido: string }>> {
+  const { data } = await axiosInstance.get<ApiResponse<Array<{ legisladorId: number; nombre: string; apellido: string }>>>(
+    '/legislatura/expedientes/coautores',
+    { params },
+  );
   return data.data;
 }
 

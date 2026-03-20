@@ -49,6 +49,7 @@ export interface Legislador {
   fecha_nacimiento: string;
   telefono: string;
   oficina: string;
+  activo?: boolean;
   comisiones?: Comision[];
 }
 
@@ -135,6 +136,8 @@ export interface SearchExpedientesParams {
   comisionUrl?: string;
   bloqueId?: number;
   legisladorId?: number;
+  autorId?: number;
+  coautorId?: number;
   tag?: string;
   category?: string;
   dateFrom?: string;

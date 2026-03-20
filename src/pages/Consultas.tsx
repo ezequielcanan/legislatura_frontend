@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Send, Sparkles, Bot, User, Loader2, Info, Plus,
-  MessageSquare, Trash2, PanelLeftClose, PanelLeftOpen, X,
+  MessageSquare, Trash2, History, X,
   FileText, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -461,14 +461,14 @@ export function Consultas() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowSidebar(!showSidebar)}
-                className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-sm font-medium ${showSidebar
+                    ? 'bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400'
+                    : 'bg-muted/50 border-border/50 hover:bg-accent text-muted-foreground'
+                  }`}
                 title={showSidebar ? 'Cerrar historial' : 'Abrir historial'}
               >
-                {showSidebar ? (
-                  <PanelLeftClose className="w-5 h-5" />
-                ) : (
-                  <PanelLeftOpen className="w-5 h-5" />
-                )}
+                <History className="w-5 h-5" />
+                <span className="hidden sm:inline">Historial</span>
               </button>
               <div>
                 <h2 className="text-lg font-semibold">Consultas IA</h2>
@@ -579,9 +579,9 @@ export function Consultas() {
                     </div>
 
                     {/* RAG Sources (collapsible) */}
-                    {msg.rol === 'asistente' && msg.sources && msg.sources.length > 0 && (
+                    {/*msg.rol === 'asistente' && msg.sources && msg.sources.length > 0 && (
                       <SourcesPanel sources={msg.sources} />
-                    )}
+                    )*/}
                   </div>
 
                   {msg.rol === 'usuario' && (

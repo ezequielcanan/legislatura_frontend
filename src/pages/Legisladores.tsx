@@ -2,12 +2,12 @@ import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
-  Search, User, Calendar, Loader2,
+  Search, User, Calendar, Loader2, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
 import Title from '../components/layout/Title';
 import Container from '../components/containers/Container';
-import { getLegisladores, getBloquesWithCounts } from '../services/legislatura.service';
+import { getLegisladores, getLegisladoresInactivos, getBloquesWithCounts } from '../services/legislatura.service';
 import type { Legislador, Bloque } from '../types/legislatura.types';
 
 function LegisladorCard({ legislador, index }: { legislador: Legislador; index: number }) {
@@ -91,11 +91,13 @@ export function Legisladores() {
   const bloqueFromQuery = searchParams.get('bloque');
 
   const [legisladores, setLegisladores] = useState<Legislador[]>([]);
+  const [inactivos, setInactivos] = useState<Legislador[]>([]);
   const [bloques, setBloques] = useState<Bloque[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [bloqueFiltro, setBloqueFiltro] = useState<string>(bloqueFromQuery || 'Todos');
+  const [showInactivos, setShowInactivos] = useState(false);
 
   // Sync with query param on mount
   useEffect(() => {
@@ -110,12 +112,14 @@ export function Legisladores() {
       try {
         setLoading(true);
         setError(null);
-        const [legsData, bloquesData] = await Promise.all([
+        const [legsData, bloquesData, inactivosData] = await Promise.all([
           getLegisladores(),
           getBloquesWithCounts(),
+          getLegisladoresInactivos(),
         ]);
         setLegisladores(legsData);
         setBloques(bloquesData);
+        setInactivos(inactivosData);
       } catch (err) {
         console.error('Error fetching legisladores:', err);
         setError('Error al cargar los datos. Intente nuevamente.');
@@ -140,6 +144,17 @@ export function Legisladores() {
       return true;
     });
   }, [busqueda, bloqueFiltro, legisladores]);
+
+  const filtradosInactivos = useMemo(() => {
+    return inactivos.filter((l) => {
+      if (busqueda) {
+        const q = busqueda.toLowerCase();
+        const matchNombre = `${l.nombre} ${l.apellido}`.toLowerCase().includes(q);
+        if (!matchNombre) return false;
+      }
+      return true;
+    });
+  }, [busqueda, inactivos]);
 
   return (
     <Container>
@@ -244,6 +259,35 @@ export function Legisladores() {
                 <User className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
                 <p className="text-lg text-muted-foreground">No se encontraron legisladores</p>
               </motion.div>
+            )}
+
+            {/* Inactive legislators section */}
+            {inactivos.length > 0 && (
+              <div className="mt-12">
+                <button
+                  onClick={() => setShowInactivos(!showInactivos)}
+                  className="flex items-center gap-2 text-lg font-semibold text-muted-foreground hover:text-foreground transition-colors mb-4"
+                >
+                  {showInactivos ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                  Legisladores con mandato no activo ({filtradosInactivos.length})
+                </button>
+
+                {showInactivos && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 opacity-75">
+                      {filtradosInactivos.map((leg, idx) => (
+                        <LegisladorCard key={leg.legisladorId} legislador={leg} index={idx} />
+                      ))}
+                    </div>
+                    {filtradosInactivos.length === 0 && (
+                      <p className="text-sm text-muted-foreground py-4">No se encontraron legisladores inactivos con ese criterio de búsqueda.</p>
+                    )}
+                  </motion.div>
+                )}
+              </div>
             )}
           </>
         )}

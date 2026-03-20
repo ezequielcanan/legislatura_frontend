@@ -9,7 +9,7 @@ import {
 import { Navbar } from '../components/layout/Navbar';
 import Title from '../components/layout/Title';
 import Container from '../components/containers/Container';
-import { searchExpedientes, getBloques, getLegisladores, getComisiones } from '../services/legislatura.service';
+import { searchExpedientes, getBloques, getLegisladores, getComisiones, getDistinctAutores, getDistinctCoautores } from '../services/legislatura.service';
 import type { Expediente, Bloque, Legislador, ComisionItem } from '../types/legislatura.types';
 
 const PAGE_SIZE = 10;
@@ -269,7 +269,8 @@ export function Proyectos() {
   const categoriaFiltro = searchParams.get('tipo') || 'Todos';
   const comisionFiltro = searchParams.get('comision') || 'Todos';
   const bloqueFiltro = searchParams.get('bloque') || 'Todos';
-  const legisladorFiltro = searchParams.get('legislador') || 'Todos';
+  const autorFiltro = searchParams.get('autor') || 'Todos';
+  const coautorFiltro = searchParams.get('coautor') || 'Todos';
   const dateFrom = searchParams.get('dateFrom') || '';
   const dateTo = searchParams.get('dateTo') || '';
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
@@ -294,6 +295,8 @@ export function Proyectos() {
   const [bloques, setBloques] = useState<Bloque[]>([]);
   const [legisladoresList, setLegisladoresList] = useState<Legislador[]>([]);
   const [comisionesList, setComisionesList] = useState<ComisionItem[]>([]);
+  const [autoresList, setAutoresList] = useState<Array<{ legisladorId: number; nombre: string; apellido: string }>>([]);
+  const [coautoresList, setCoautoresList] = useState<Array<{ legisladorId: number; nombre: string; apellido: string }>>([]);
 
   // Debounce timers
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -388,7 +391,7 @@ export function Proyectos() {
     });
   };
 
-  const filtrosActivos = categoriaFiltro !== 'Todos' || comisionFiltro !== 'Todos' || bloqueFiltro !== 'Todos' || legisladorFiltro !== 'Todos' || busqueda.length > 0;
+  const filtrosActivos = categoriaFiltro !== 'Todos' || comisionFiltro !== 'Todos' || bloqueFiltro !== 'Todos' || autorFiltro !== 'Todos' || coautorFiltro !== 'Todos' || busqueda.length > 0;
 
   // Sync local date state when URL params change externally
   useEffect(() => { setLocalDateFrom(dateFrom); }, [dateFrom]);
@@ -432,6 +435,35 @@ export function Proyectos() {
     loadReferenceData();
   }, []);
 
+  // Dynamically load autores/coautores based on current filters
+  useEffect(() => {
+    async function loadAutoresCoautores() {
+      try {
+        const baseParams: Record<string, any> = {};
+        if (categoriaFiltro !== 'Todos') baseParams.tipo = categoriaFiltro;
+        if (comisionFiltro !== 'Todos') baseParams.comisionUrl = comisionFiltro;
+        if (bloqueFiltro !== 'Todos') baseParams.bloqueId = Number(bloqueFiltro);
+        if (dateMode === 'day') {
+          baseParams.dateFrom = selectedDate;
+          baseParams.dateTo = selectedDate;
+        } else if (dateMode === 'range') {
+          if (dateFrom) baseParams.dateFrom = dateFrom;
+          if (dateTo) baseParams.dateTo = dateTo;
+        }
+
+        const [autoresData, coautoresData] = await Promise.all([
+          getDistinctAutores(baseParams),
+          getDistinctCoautores(baseParams),
+        ]);
+        setAutoresList(autoresData);
+        setCoautoresList(coautoresData);
+      } catch (err) {
+        console.error('Error loading autores/coautores:', err);
+      }
+    }
+    loadAutoresCoautores();
+  }, [categoriaFiltro, comisionFiltro, bloqueFiltro, selectedDate, dateFrom, dateTo, dateMode]);
+
   // Fetch expedientes when filters change
   useEffect(() => {
     let cancelled = false;
@@ -445,7 +477,8 @@ export function Proyectos() {
         if (categoriaFiltro !== 'Todos') params.tipo = categoriaFiltro;
         if (comisionFiltro !== 'Todos') params.comisionUrl = comisionFiltro;
         if (bloqueFiltro !== 'Todos') params.bloqueId = Number(bloqueFiltro);
-        if (legisladorFiltro !== 'Todos') params.legisladorId = Number(legisladorFiltro);
+        if (autorFiltro !== 'Todos') params.autorId = Number(autorFiltro);
+        if (coautorFiltro !== 'Todos') params.coautorId = Number(coautorFiltro);
 
         // Date filtering
         if (dateMode === 'day') {
@@ -476,7 +509,7 @@ export function Proyectos() {
 
     fetchData();
     return () => { cancelled = true; };
-  }, [busqueda, categoriaFiltro, comisionFiltro, bloqueFiltro, legisladorFiltro, selectedDate, dateFrom, dateTo, dateMode, currentPage]);
+  }, [busqueda, categoriaFiltro, comisionFiltro, bloqueFiltro, autorFiltro, coautorFiltro, selectedDate, dateFrom, dateTo, dateMode, currentPage]);
 
   const limpiarFiltros = () => {
     setSearchParams({ fecha: formatDateISO(new Date()), modo: 'day' });
@@ -667,7 +700,7 @@ export function Proyectos() {
                 className="overflow-hidden"
               >
                 <div className="mt-4 p-5 bg-background/80 backdrop-blur-lg rounded-2xl border border-border/50 shadow-lg">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* Categoría / Tipo */}
                     <div>
                       <label className="text-sm font-medium text-muted-foreground mb-2 block">Categoría</label>
@@ -712,18 +745,35 @@ export function Proyectos() {
                       </select>
                     </div>
 
-                    {/* Legislador */}
+                    {/* Autor */}
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground mb-2 block">Legislador/a</label>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">Autor/a</label>
                       <select
-                        value={legisladorFiltro}
-                        onChange={(e) => setParam('legislador', e.target.value)}
+                        value={autorFiltro}
+                        onChange={(e) => setParam('autor', e.target.value)}
                         className="w-full px-3 py-2.5 rounded-xl bg-muted/50 border border-border focus:border-violet-500 outline-none text-sm"
                       >
                         <option value="Todos">Todos</option>
-                        {legisladoresList.map((l) => (
+                        {autoresList.map((l) => (
                           <option key={l.legisladorId} value={String(l.legisladorId)}>
-                            {l.apellido}, {l.nombre} ({l.bloque})
+                            {l.apellido}, {l.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Coautor */}
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">Coautor/a</label>
+                      <select
+                        value={coautorFiltro}
+                        onChange={(e) => setParam('coautor', e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl bg-muted/50 border border-border focus:border-violet-500 outline-none text-sm"
+                      >
+                        <option value="Todos">Todos</option>
+                        {coautoresList.map((l) => (
+                          <option key={l.legisladorId} value={String(l.legisladorId)}>
+                            {l.apellido}, {l.nombre}
                           </option>
                         ))}
                       </select>
