@@ -5,6 +5,7 @@ import {
   Search, Filter, FileText,
   Tag, Users, X, Sparkles, Loader2,
   ChevronLeft, ChevronRight, Calendar, ChevronsLeft, ChevronsRight,
+  Hash,
 } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
 import Title from '../components/layout/Title';
@@ -281,6 +282,9 @@ export function Proyectos() {
   // Mode: 'day' for day-by-day browsing, 'range' for custom date range
   const dateMode = searchParams.get('modo') || 'day';
 
+  // Search mode: 'text' for regex coincidences, 'exact' for exact expediente number
+  const searchMode = (searchParams.get('searchMode') || 'text') as 'text' | 'exact';
+
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [proyectos, setProyectos] = useState<Expediente[]>([]);
   const [totalResultados, setTotalResultados] = useState(0);
@@ -479,6 +483,7 @@ export function Proyectos() {
         if (bloqueFiltro !== 'Todos') params.bloqueId = Number(bloqueFiltro);
         if (autorFiltro !== 'Todos') params.autorId = Number(autorFiltro);
         if (coautorFiltro !== 'Todos') params.coautorId = Number(coautorFiltro);
+        if (searchMode === 'exact') params.searchMode = 'exact';
 
         // Date filtering
         if (dateMode === 'day') {
@@ -509,7 +514,7 @@ export function Proyectos() {
 
     fetchData();
     return () => { cancelled = true; };
-  }, [busqueda, categoriaFiltro, comisionFiltro, bloqueFiltro, autorFiltro, coautorFiltro, selectedDate, dateFrom, dateTo, dateMode, currentPage]);
+  }, [busqueda, categoriaFiltro, comisionFiltro, bloqueFiltro, autorFiltro, coautorFiltro, selectedDate, dateFrom, dateTo, dateMode, currentPage, searchMode]);
 
   const limpiarFiltros = () => {
     setSearchParams({ fecha: formatDateISO(new Date()), modo: 'day' });
@@ -666,15 +671,51 @@ export function Proyectos() {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              {searchMode === 'exact' ? (
+                <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-500" />
+              ) : (
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              )}
               <input
                 type="text"
                 defaultValue={busqueda}
+                key={searchMode}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por título, expediente, etiqueta..."
-                className="w-full pl-12 pr-4 py-3 rounded-xl bg-background/80 backdrop-blur-lg border border-border/50 focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none transition-all"
+                placeholder={searchMode === 'exact' ? 'Buscar por número de expediente exacto (ej: 1234-J-2025)...' : 'Buscar por título, expediente, etiqueta...'}
+                className={`w-full pl-12 pr-4 py-3 rounded-xl bg-background/80 backdrop-blur-lg border focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none transition-all ${
+                  searchMode === 'exact' ? 'border-amber-500/50' : 'border-border/50'
+                }`}
               />
             </div>
+
+            {/* Search mode toggle */}
+            <div className="flex items-center gap-1 bg-muted/50 rounded-xl border border-border/50 p-0.5">
+              <button
+                onClick={() => setParam('searchMode', 'text')}
+                className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  searchMode === 'text'
+                    ? 'bg-violet-600 text-white shadow-md'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+                title="Búsqueda por coincidencias de texto"
+              >
+                <Search className="w-4 h-4" />
+                <span className="hidden lg:inline">Coincidencias</span>
+              </button>
+              <button
+                onClick={() => setParam('searchMode', 'exact')}
+                className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  searchMode === 'exact'
+                    ? 'bg-amber-500 text-white shadow-md'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+                title="Búsqueda exacta por número de expediente"
+              >
+                <Hash className="w-4 h-4" />
+                <span className="hidden lg:inline">Nro. exacto</span>
+              </button>
+            </div>
+
             <button
               onClick={() => setMostrarFiltros(!mostrarFiltros)}
               className={`flex items-center gap-2 px-5 py-3 rounded-xl border transition-all ${mostrarFiltros || filtrosActivos

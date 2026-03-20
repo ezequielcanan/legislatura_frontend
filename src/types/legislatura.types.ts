@@ -142,6 +142,10 @@ export interface SearchExpedientesParams {
   category?: string;
   dateFrom?: string;
   dateTo?: string;
+  nroOrden?: number;
+  anoParlamentario?: number;
+  searchMode?: 'text' | 'exact';
+  baeSourceOnly?: boolean;
   limit?: number;
   skip?: number;
 }

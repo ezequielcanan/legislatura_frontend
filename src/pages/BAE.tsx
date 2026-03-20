@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Search, Filter, FileText,
   Tag, Users, X, Sparkles, Loader2,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  BookOpen,
+  BookOpen, Hash,
 } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
 import Title from '../components/layout/Title';
@@ -13,6 +13,7 @@ import Container from '../components/containers/Container';
 import {
   getBaes,
   getBaeWithExpedientes,
+  getCombinedBaesExpedientes,
   getBloques,
   getComisiones,
   getDistinctAutores,
@@ -239,6 +240,15 @@ export function BAE() {
   const coautorFiltro = searchParams.get('coautor') || 'Todos';
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
 
+  // New filters
+  const searchMode = (searchParams.get('searchMode') || 'text') as 'text' | 'exact';
+  const baeSourceOnly = searchParams.get('baeSourceOnly') === 'true';
+  const baeMode = (searchParams.get('mode') || 'single') as 'single' | 'combine';
+  const yearFilter = searchParams.get('year') || 'Todos';
+
+  // Selected BAEs for combine mode (comma-separated "nro-ano" in URL)
+  const selectedBaesParam = searchParams.get('selectedBaes') || '';
+
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [proyectos, setProyectos] = useState<Expediente[]>([]);
   const [totalResultados, setTotalResultados] = useState(0);
@@ -259,6 +269,27 @@ export function BAE() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(totalResultados / PAGE_SIZE));
+
+  // Get unique years from all BAEs
+  const availableYears = useMemo(() => {
+    const years = [...new Set(allBaes.map((b) => b.anoParlamentario))].sort((a, b) => b - a);
+    return years;
+  }, [allBaes]);
+
+  // Filter BAEs by selected year
+  const filteredBaes = useMemo(() => {
+    if (yearFilter === 'Todos') return allBaes;
+    return allBaes.filter((b) => b.anoParlamentario === Number(yearFilter));
+  }, [allBaes, yearFilter]);
+
+  // Parse selected BAEs for combine mode
+  const selectedBaes = useMemo(() => {
+    if (!selectedBaesParam) return [];
+    return selectedBaesParam.split(',').map((ref) => {
+      const [nro, ano] = ref.split('-').map(Number);
+      return { nroOrden: nro, anoParlamentario: ano };
+    }).filter((r) => !isNaN(r.nroOrden) && !isNaN(r.anoParlamentario));
+  }, [selectedBaesParam]);
 
   // Helper to update search params
   const setParam = useCallback(
@@ -292,43 +323,100 @@ export function BAE() {
     [setParam, setSearchParams],
   );
 
-  const filtrosActivos = categoriaFiltro !== 'Todos' || comisionFiltro !== 'Todos' || bloqueFiltro !== 'Todos' || autorFiltro !== 'Todos' || coautorFiltro !== 'Todos' || busqueda.length > 0;
+  const filtrosActivos = categoriaFiltro !== 'Todos' || comisionFiltro !== 'Todos' || bloqueFiltro !== 'Todos' || autorFiltro !== 'Todos' || coautorFiltro !== 'Todos' || busqueda.length > 0 || baeSourceOnly;
 
-  // Find current index in the sorted BAE list
-  const currentBaeIndex = allBaes.findIndex(
+  // Find current index in the filtered BAE list
+  const currentBaeIndex = filteredBaes.findIndex(
     (b) => b.nroOrden === currentNro && b.anoParlamentario === currentAno,
   );
 
   // Navigation: BAEs are sorted desc (newest first), so "prev" means older (higher index), "next" means newer (lower index)
-  const canGoNewer = currentBaeIndex > 0;
-  const canGoOlder = currentBaeIndex < allBaes.length - 1 && currentBaeIndex >= 0;
+  const canGoNewer = currentBaeIndex < filteredBaes.length - 1 && currentBaeIndex >= 0;
+  const canGoOlder = currentBaeIndex > 0;
 
   const goToNewer = () => {
     if (!canGoNewer) return;
-    const newer = allBaes[currentBaeIndex - 1];
-    setSearchParams({
-      nro: String(newer.nroOrden),
-      ano: String(newer.anoParlamentario),
+    const newer = filteredBaes[currentBaeIndex + 1];
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('nro', String(newer.nroOrden));
+      next.set('ano', String(newer.anoParlamentario));
+      next.delete('page');
+      return next;
     });
   };
 
   const goToOlder = () => {
     if (!canGoOlder) return;
-    const older = allBaes[currentBaeIndex + 1];
-    setSearchParams({
-      nro: String(older.nroOrden),
-      ano: String(older.anoParlamentario),
+    const older = filteredBaes[currentBaeIndex - 1];
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('nro', String(older.nroOrden));
+      next.set('ano', String(older.anoParlamentario));
+      next.delete('page');
+      return next;
     });
   };
 
   const goToLatest = () => {
-    if (allBaes.length > 0) {
-      const latest = allBaes[0];
-      setSearchParams({
-        nro: String(latest.nroOrden),
-        ano: String(latest.anoParlamentario),
+    if (filteredBaes.length > 0) {
+      const latest = filteredBaes[filteredBaes.length - 1];
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('nro', String(latest.nroOrden));
+        next.set('ano', String(latest.anoParlamentario));
+        next.delete('page');
+        return next;
       });
     }
+  };
+
+  // Toggle a BAE in combine mode
+  const toggleBaeSelection = (nroOrden: number, anoParlamentario: number) => {
+    const key = `${nroOrden}-${anoParlamentario}`;
+    const current = selectedBaesParam ? selectedBaesParam.split(',') : [];
+    const idx = current.indexOf(key);
+    let updated: string[];
+    if (idx >= 0) {
+      updated = current.filter((_, i) => i !== idx);
+    } else {
+      updated = [...current, key];
+    }
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (updated.length === 0) {
+        next.delete('selectedBaes');
+      } else {
+        next.set('selectedBaes', updated.join(','));
+      }
+      next.delete('page');
+      return next;
+    });
+  };
+
+  const isBaeSelected = (nroOrden: number, anoParlamentario: number) => {
+    const key = `${nroOrden}-${anoParlamentario}`;
+    return selectedBaesParam.split(',').includes(key);
+  };
+
+  // Select all BAEs visible (in current year filter)
+  const selectAllFilteredBaes = () => {
+    const keys = filteredBaes.map((b) => `${b.nroOrden}-${b.anoParlamentario}`);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('selectedBaes', keys.join(','));
+      next.delete('page');
+      return next;
+    });
+  };
+
+  const clearBaeSelection = () => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('selectedBaes');
+      next.delete('page');
+      return next;
+    });
   };
 
   // Load all BAEs and reference data on mount
@@ -341,14 +429,14 @@ export function BAE() {
           getComisiones(),
         ]);
 
-        setAllBaes(baesData);
+        setAllBaes(baesData?.reverse());
         setBloques(bloquesData);
         setComisionesList(comisionesData);
         setBaesLoaded(true);
 
         // If no BAE selected in URL, navigate to latest
         if (!searchParams.get('nro') && baesData.length > 0) {
-          const latest = baesData[0];
+          const latest = baesData[baesData?.length - 1];
           setSearchParams({
             nro: String(latest.nroOrden),
             ano: String(latest.anoParlamentario),
@@ -391,7 +479,14 @@ export function BAE() {
 
   // Fetch BAE expedientes when BAE selection or filters change
   useEffect(() => {
-    if (!currentNro || !currentAno || !baesLoaded) return setLoading(false);
+    const isSingleMode = baeMode === 'single';
+    const isCombineMode = baeMode === 'combine';
+
+    // In single mode, need currentNro and currentAno
+    if (isSingleMode && (!currentNro || !currentAno || !baesLoaded)) return setLoading(false);
+    // In combine mode, need at least one selected BAE
+    if (isCombineMode && (selectedBaes.length === 0 || !baesLoaded)) return setLoading(false);
+
     let cancelled = false;
 
     async function fetchData() {
@@ -405,13 +500,24 @@ export function BAE() {
         if (bloqueFiltro !== 'Todos') params.bloqueId = Number(bloqueFiltro);
         if (autorFiltro !== 'Todos') params.autorId = Number(autorFiltro);
         if (coautorFiltro !== 'Todos') params.coautorId = Number(coautorFiltro);
+        if (searchMode === 'exact') params.searchMode = 'exact';
+        if (baeSourceOnly) params.baeSourceOnly = true;
         params.skip = (currentPage - 1) * PAGE_SIZE;
 
-        const result = await getBaeWithExpedientes(currentNro, currentAno, params);
-        if (!cancelled) {
-          setProyectos(result.expedientes);
-          setTotalResultados(result.total);
-          setCurrentBae(result.bae);
+        if (isCombineMode) {
+          const result = await getCombinedBaesExpedientes(selectedBaes, params);
+          if (!cancelled) {
+            setProyectos(result.expedientes);
+            setTotalResultados(result.total);
+            setCurrentBae(null);
+          }
+        } else {
+          const result = await getBaeWithExpedientes(currentNro, currentAno, params);
+          if (!cancelled) {
+            setProyectos(result.expedientes);
+            setTotalResultados(result.total);
+            setCurrentBae(result.bae);
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -425,12 +531,18 @@ export function BAE() {
 
     fetchData();
     return () => { cancelled = true; };
-  }, [currentNro, currentAno, busqueda, categoriaFiltro, comisionFiltro, bloqueFiltro, autorFiltro, coautorFiltro, currentPage, baesLoaded]);
+  }, [currentNro, currentAno, busqueda, categoriaFiltro, comisionFiltro, bloqueFiltro, autorFiltro, coautorFiltro, currentPage, baesLoaded, baeMode, selectedBaes, searchMode, baeSourceOnly]);
 
   const limpiarFiltros = () => {
-    setSearchParams({
-      nro: String(currentNro),
-      ano: String(currentAno),
+    setSearchParams((prev) => {
+      const next = new URLSearchParams();
+      // Preserve BAE navigation
+      if (prev.get('nro')) next.set('nro', prev.get('nro')!);
+      if (prev.get('ano')) next.set('ano', prev.get('ano')!);
+      if (prev.get('mode')) next.set('mode', prev.get('mode')!);
+      if (prev.get('year')) next.set('year', prev.get('year')!);
+      if (prev.get('selectedBaes')) next.set('selectedBaes', prev.get('selectedBaes')!);
+      return next;
     });
   };
 
@@ -466,94 +578,224 @@ export function BAE() {
           className="mb-6"
         >
           <div className="bg-background/80 backdrop-blur-lg rounded-2xl border border-border/50 shadow-lg p-4">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <button
-                onClick={goToOlder}
-                disabled={!canGoOlder}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl bg-muted/50 hover:bg-muted border border-border/50 transition-colors text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">BAE anterior</span>
-              </button>
-
-              <div className="flex flex-col items-center gap-1 text-center">
-                <div className="flex items-center gap-3">
-                  <BookOpen className="w-5 h-5 text-violet-500" />
-                  <p className="text-base sm:text-lg font-semibold">
-                    BAE N° {currentNro} — {currentAno}
-                  </p>
-                </div>
-                {currentBae && (
-                  <p className="text-xs text-muted-foreground">
-                    {formatBaeDate(currentBae.fechaDesdeDate)} — {formatBaeDate(currentBae.fechaHastaDate)}
-                    {' · '}
-                    {currentBae.totalItems} expedientes
-                  </p>
-                )}
+            {/* Mode toggle + Year filter */}
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5">
+                <button
+                  onClick={() => setParam('mode', 'single')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    baeMode === 'single'
+                      ? 'bg-violet-600 text-white shadow-md'
+                      : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  BAE individual
+                </button>
+                <button
+                  onClick={() => setParam('mode', 'combine')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    baeMode === 'combine'
+                      ? 'bg-violet-600 text-white shadow-md'
+                      : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  Combinar BAEs
+                </button>
               </div>
 
-              <div className="flex items-center gap-2">
-                {canGoNewer && currentBaeIndex !== 0 && (
-                  <button
-                    onClick={goToLatest}
-                    className="px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 transition-colors text-sm font-medium"
-                  >
-                    Último
-                  </button>
-                )}
-                <button
-                  onClick={goToNewer}
-                  disabled={!canGoNewer}
-                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-muted/50 hover:bg-muted border border-border/50 transition-colors text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+              <div className="flex items-center gap-2 ml-auto">
+                <label className="text-sm text-muted-foreground font-medium">Año:</label>
+                <select
+                  value={yearFilter}
+                  onChange={(e) => setParam('year', e.target.value)}
+                  className="px-3 py-1.5 rounded-lg bg-muted/50 border border-border text-sm font-medium focus:border-violet-500 outline-none"
                 >
-                  <span className="hidden sm:inline">BAE siguiente</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+                  <option value="Todos">Todos</option>
+                  {availableYears.map((y) => (
+                    <option key={y} value={String(y)}>{y}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            {/* Quick BAE selector */}
-            {allBaes.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border/30">
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">Ir a:</span>
-                  {allBaes.map((b) => (
+            {baeMode === 'single' ? (
+              /* Single BAE navigation */
+              <>
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <button
+                    onClick={goToOlder}
+                    disabled={!canGoOlder}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-muted/50 hover:bg-muted border border-border/50 transition-colors text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span className="hidden sm:inline">BAE anterior</span>
+                  </button>
+
+                  <div className="flex flex-col items-center gap-1 text-center">
+                    <div className="flex items-center gap-3">
+                      <BookOpen className="w-5 h-5 text-violet-500" />
+                      <p className="text-base sm:text-lg font-semibold">
+                        BAE N° {currentNro} — {currentAno}
+                      </p>
+                    </div>
+                    {currentBae && (
+                      <p className="text-xs text-muted-foreground">
+                        {formatBaeDate(currentBae.fechaDesdeDate)} — {formatBaeDate(currentBae.fechaHastaDate)}
+                        {' · '}
+                        {currentBae.totalItems} expedientes
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {canGoNewer && currentBaeIndex !== 0 && (
+                      <button
+                        onClick={goToLatest}
+                        className="px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 transition-colors text-sm font-medium"
+                      >
+                        Último
+                      </button>
+                    )}
                     <button
-                      key={`${b.nroOrden}-${b.anoParlamentario}`}
-                      onClick={() =>
-                        setSearchParams({
-                          nro: String(b.nroOrden),
-                          ano: String(b.anoParlamentario),
-                        })
-                      }
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                        b.nroOrden === currentNro && b.anoParlamentario === currentAno
-                          ? 'bg-violet-600 text-white shadow-md'
-                          : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                      }`}
+                      onClick={goToNewer}
+                      disabled={!canGoNewer}
+                      className="flex items-center gap-1 px-3 py-2 rounded-xl bg-muted/50 hover:bg-muted border border-border/50 transition-colors text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed"
                     >
-                      {b.nroOrden}-{b.anoParlamentario}
+                      <span className="hidden sm:inline">BAE siguiente</span>
+                      <ChevronRight className="w-4 h-4" />
                     </button>
-                  ))}
+                  </div>
                 </div>
-              </div>
+
+                {/* Quick BAE selector */}
+                {filteredBaes.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border/30">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">Ir a:</span>
+                      {filteredBaes.map((b) => (
+                        <button
+                          key={`${b.nroOrden}-${b.anoParlamentario}`}
+                          onClick={() =>
+                            setSearchParams((prev) => {
+                              const next = new URLSearchParams(prev);
+                              next.set('nro', String(b.nroOrden));
+                              next.set('ano', String(b.anoParlamentario));
+                              next.delete('page');
+                              return next;
+                            })
+                          }
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                            b.nroOrden === currentNro && b.anoParlamentario === currentAno
+                              ? 'bg-violet-600 text-white shadow-md'
+                              : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {b.nroOrden}-{b.anoParlamentario}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              /* Combine mode - multi-select */
+              <>
+                <div className="flex items-center gap-3 mb-3">
+                  <BookOpen className="w-5 h-5 text-violet-500" />
+                  <p className="text-base font-semibold">
+                    Seleccioná los BAEs a combinar
+                  </p>
+                  <span className="text-xs text-muted-foreground">
+                    ({selectedBaes.length} seleccionado{selectedBaes.length !== 1 ? 's' : ''})
+                  </span>
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      onClick={selectAllFilteredBaes}
+                      className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                    >
+                      Seleccionar todos
+                    </button>
+                    {selectedBaes.length > 0 && (
+                      <button
+                        onClick={clearBaeSelection}
+                        className="text-xs text-red-500 hover:underline"
+                      >
+                        Limpiar
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {filteredBaes.map((b) => {
+                    const selected = isBaeSelected(b.nroOrden, b.anoParlamentario);
+                    return (
+                      <button
+                        key={`${b.nroOrden}-${b.anoParlamentario}`}
+                        onClick={() => toggleBaeSelection(b.nroOrden, b.anoParlamentario)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border ${
+                          selected
+                            ? 'bg-violet-600 text-white border-violet-600 shadow-md'
+                            : 'bg-muted/50 text-muted-foreground border-border/50 hover:bg-muted'
+                        }`}
+                      >
+                        {selected ? '✓ ' : ''}{b.nroOrden}-{b.anoParlamentario}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         </motion.div>
-
         {/* Search & Filter Bar */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              {searchMode === 'exact' ? (
+                <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-500" />
+              ) : (
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              )}
               <input
                 type="text"
                 defaultValue={busqueda}
+                key={searchMode}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por título, expediente, etiqueta..."
-                className="w-full pl-12 pr-4 py-3 rounded-xl bg-background/80 backdrop-blur-lg border border-border/50 focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none transition-all"
+                placeholder={searchMode === 'exact' ? 'Buscar por número de expediente exacto (ej: 1234-J-2025)...' : 'Buscar por título, expediente, etiqueta...'}
+                className={`w-full pl-12 pr-4 py-3 rounded-xl bg-background/80 backdrop-blur-lg border focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none transition-all ${
+                  searchMode === 'exact' ? 'border-amber-500/50' : 'border-border/50'
+                }`}
               />
             </div>
+
+            {/* Search mode toggle */}
+            <div className="flex items-center gap-1 bg-muted/50 rounded-xl border border-border/50 p-0.5">
+              <button
+                onClick={() => setParam('searchMode', 'text')}
+                className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  searchMode === 'text'
+                    ? 'bg-violet-600 text-white shadow-md'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+                title="Búsqueda por coincidencias de texto"
+              >
+                <Search className="w-4 h-4" />
+                <span className="hidden lg:inline">Coincidencias</span>
+              </button>
+              <button
+                onClick={() => setParam('searchMode', 'exact')}
+                className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  searchMode === 'exact'
+                    ? 'bg-amber-500 text-white shadow-md'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+                title="Búsqueda exacta por número de expediente"
+              >
+                <Hash className="w-4 h-4" />
+                <span className="hidden lg:inline">Nro. exacto</span>
+              </button>
+            </div>
+
             <button
               onClick={() => setMostrarFiltros(!mostrarFiltros)}
               className={`flex items-center gap-2 px-5 py-3 rounded-xl border transition-all ${mostrarFiltros || filtrosActivos
@@ -567,6 +809,26 @@ export function BAE() {
                 <span className="w-2 h-2 rounded-full bg-violet-500" />
               )}
             </button>
+          </div>
+
+          {/* BAE Source-only toggle */}
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              onClick={() => setParam('baeSourceOnly', baeSourceOnly ? '' : 'true')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                baeSourceOnly
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                  : 'bg-muted/50 border-border/50 text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${baeSourceOnly ? 'bg-amber-500' : 'bg-muted-foreground/30'}`} />
+              Solo propios del BAE
+            </button>
+            {baeSourceOnly && (
+              <span className="text-xs text-muted-foreground">
+                Mostrando solo expedientes con la etiqueta BAE
+              </span>
+            )}
           </div>
 
           {/* Filters Panel */}
@@ -680,7 +942,10 @@ export function BAE() {
         {!loading && !error && (
           <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
             <span>
-              {totalResultados} expediente{totalResultados !== 1 ? 's' : ''} en este BAE
+              {totalResultados} expediente{totalResultados !== 1 ? 's' : ''}
+              {baeMode === 'combine'
+                ? ` en ${selectedBaes.length} BAE${selectedBaes.length !== 1 ? 's' : ''} combinados`
+                : ' en este BAE'}
             </span>
             {totalPages > 1 && (
               <span>
@@ -733,12 +998,16 @@ export function BAE() {
                 <BaeCard key={proyecto.expedienteId} proyecto={proyecto} index={idx} />
               ))}
 
-              {proyectos?.length === 0 && allBaes.length > 0 && (
+              {proyectos?.length === 0 && (allBaes.length > 0 || baeMode === 'combine') && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
                   <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
                   <p className="text-lg text-muted-foreground">
-                    No se encontraron expedientes en el BAE N° {currentNro} — {currentAno}
-                    {filtrosActivos ? ' con los filtros seleccionados' : ''}
+                    {baeMode === 'combine' && selectedBaes.length === 0
+                      ? 'Seleccioná al menos un BAE para ver sus expedientes'
+                      : baeMode === 'combine'
+                      ? `No se encontraron expedientes en los BAEs seleccionados${filtrosActivos ? ' con los filtros seleccionados' : ''}`
+                      : `No se encontraron expedientes en el BAE N° ${currentNro} — ${currentAno}${filtrosActivos ? ' con los filtros seleccionados' : ''}`
+                    }
                   </p>
                   {filtrosActivos && (
                     <button

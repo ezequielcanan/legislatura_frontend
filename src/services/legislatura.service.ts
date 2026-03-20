@@ -123,6 +123,17 @@ export async function getBaeWithExpedientes(
   return { bae: data.bae, expedientes: data.expedientes, total: data.total };
 }
 
+export async function getCombinedBaesExpedientes(
+  baes: Array<{ nroOrden: number; anoParlamentario: number }>,
+  params: SearchExpedientesParams = {},
+): Promise<{ expedientes: Expediente[]; total: number }> {
+  const baesParam = baes.map((b) => `${b.nroOrden}-${b.anoParlamentario}`).join(',');
+  const { data } = await axiosInstance.get('/legislatura/bae/combined', {
+    params: { ...params, baes: baesParam },
+  });
+  return { expedientes: data.expedientes, total: data.total };
+}
+
 // ─── Chat (SSE streaming) ────────────────────────
 
 export interface RagSource {
