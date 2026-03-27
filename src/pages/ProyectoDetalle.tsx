@@ -3,11 +3,11 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
   ArrowLeft, FileText, Calendar, Tag, Users,
-  Sparkles, MapPin, ScrollText, Download, Loader2, AlertCircle, Building2,
+  Sparkles, MapPin, ScrollText, Download, Loader2, AlertCircle, Building2, RefreshCw,
 } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
 import Container from '../components/containers/Container';
-import { getExpedienteById } from '../services/legislatura.service';
+import { getExpedienteById, resyncExpediente } from '../services/legislatura.service';
 import type { Expediente } from '../types/legislatura.types';
 
 const estadoColor: Record<string, string> = {
@@ -41,6 +41,9 @@ export function ProyectoDetalle() {
   const [proyecto, setProyecto] = useState<Expediente | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncSuccess, setResyncSuccess] = useState(false);
+  const [resyncError, setResyncError] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -84,6 +87,25 @@ export function ProyectoDetalle() {
       cancelled = true;
     };
   }, [expedienteId]);
+
+  console.log(proyecto)
+
+  async function handleResync() {
+    if (!proyecto || resyncing) return;
+    setResyncing(true);
+    setResyncError(null);
+    setResyncSuccess(false);
+    try {
+      const updated = await resyncExpediente(proyecto.expedienteId);
+      setProyecto(updated);
+      setResyncSuccess(true);
+      setTimeout(() => setResyncSuccess(false), 4000);
+    } catch (err: any) {
+      setResyncError(err?.response?.data?.message || err?.message || 'Error al resincronizar');
+    } finally {
+      setResyncing(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -298,6 +320,30 @@ export function ProyectoDetalle() {
                     Descargar Documento
                   </a>
                 </div>
+
+                {(!proyecto.aiSummary || proyecto.aiSummary == proyecto.sumario) && (
+                  <div className="mt-3">
+                    <button
+                      onClick={handleResync}
+                      disabled={resyncing}
+                      className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400 hover:text-amber-500 dark:hover:text-amber-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Resincronizar expediente (descargar PDF y regenerar resumen IA)"
+                    >
+                      {resyncing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                      {resyncing ? 'Resincronizando...' : 'Resincronizar'}
+                    </button>
+                    {resyncSuccess && (
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">Resincronización exitosa</p>
+                    )}
+                    {resyncError && (
+                      <p className="text-xs text-red-500 mt-1">{resyncError}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </motion.div>
 

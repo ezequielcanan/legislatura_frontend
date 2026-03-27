@@ -96,6 +96,11 @@ export async function getExpedientesByLegislador(legisladorId: number): Promise<
   return data.data;
 }
 
+export async function resyncExpediente(id: number): Promise<Expediente> {
+  const { data } = await axiosInstance.post<ApiResponse<Expediente>>(`/legislatura/expedientes/${id}/resync`, {}, {timeout: 60000});
+  return data.data;
+}
+
 // ─── Stats ───────────────────────────────────────
 
 export async function getStats(): Promise<LegislaturaStats> {
