@@ -109,7 +109,7 @@ export async function getExportDataWithFilters(
   const { data } = await axiosInstance.post(
     '/legislatura/expedientes/export-data',
     params,
-    { timeout: 120000 },
+    { timeout: 300000 },
   );
   return { expedientes: data.expedientes, exportData: data.exportData, total: data.total };
 }
