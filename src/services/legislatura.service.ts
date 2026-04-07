@@ -101,6 +101,28 @@ export async function resyncExpediente(id: number): Promise<Expediente> {
   return data.data;
 }
 
+// ─── Export Data (sanciones + bloques) ───────────
+
+export async function getExportData(
+  expedienteIds: number[],
+): Promise<Record<number, { sancionado: boolean; bloque: string }>> {
+  const ids = expedienteIds.join(',');
+  const { data } = await axiosInstance.get<ApiResponse<Record<number, { sancionado: boolean; bloque: string }>>>(
+    '/legislatura/expedientes/export-data',
+    { params: { ids }, timeout: 120000 },
+  );
+  return data.data;
+}
+
+export async function getExpedienteSancion(
+  id: number,
+): Promise<{ sancionado: boolean; tipo?: string; fechaSesion?: string }> {
+  const { data } = await axiosInstance.get<ApiResponse<{ sancionado: boolean; tipo?: string; fechaSesion?: string }>>(
+    `/legislatura/expedientes/sancion/${id}`,
+  );
+  return data.data;
+}
+
 // ─── Stats ───────────────────────────────────────
 
 export async function getStats(): Promise<LegislaturaStats> {

@@ -5,8 +5,9 @@ import {
   Search, Filter, FileText,
   Tag, Users, X, Sparkles, Loader2,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  BookOpen, Hash,
+  BookOpen, Hash, Download,
 } from 'lucide-react';
+import { exportExpedientesToExcel } from '../services/exportExcel';
 import { Navbar } from '../components/layout/Navbar';
 import Title from '../components/layout/Title';
 import Container from '../components/containers/Container';
@@ -266,6 +267,8 @@ export function BAE() {
   const [autoresList, setAutoresList] = useState<Array<{ legisladorId: number; nombre: string; apellido: string }>>([]);
   const [coautoresList, setCoautoresList] = useState<Array<{ legisladorId: number; nombre: string; apellido: string }>>([]);
 
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(totalResultados / PAGE_SIZE));
@@ -549,6 +552,63 @@ export function BAE() {
   const handlePageChange = (page: number) => {
     setParam('page', String(page));
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportMsg('');
+    try {
+      // Resolve human-readable filter labels
+      const bloqueLabel = bloqueFiltro !== 'Todos'
+        ? bloques.find((b) => String(b.bloqueId) === bloqueFiltro)?.nombre || bloqueFiltro
+        : 'Todos';
+      const comisionLabel = comisionFiltro !== 'Todos'
+        ? comisionesList.find((c) => c.url === comisionFiltro)?.nombre || comisionFiltro
+        : 'Todos';
+      const autorLabel = autorFiltro !== 'Todos'
+        ? autoresList.find((a) => String(a.legisladorId) === autorFiltro)
+          ? `${autoresList.find((a) => String(a.legisladorId) === autorFiltro)!.apellido}, ${autoresList.find((a) => String(a.legisladorId) === autorFiltro)!.nombre}`
+          : autorFiltro
+        : 'Todos';
+      const coautorLabel = coautorFiltro !== 'Todos'
+        ? coautoresList.find((a) => String(a.legisladorId) === coautorFiltro)
+          ? `${coautoresList.find((a) => String(a.legisladorId) === coautorFiltro)!.apellido}, ${coautoresList.find((a) => String(a.legisladorId) === coautorFiltro)!.nombre}`
+          : coautorFiltro
+        : 'Todos';
+
+      await exportExpedientesToExcel(
+        {
+          source: 'bae',
+          filters: {
+            busqueda: busqueda || undefined,
+            categoria: categoriaFiltro,
+            comision: comisionLabel,
+            bloque: bloqueLabel,
+            autor: autorLabel,
+            coautor: coautorLabel,
+            searchMode,
+            baeSourceOnly,
+          },
+          filterIds: {
+            bloqueId: bloqueFiltro !== 'Todos' ? Number(bloqueFiltro) : undefined,
+            comisionUrl: comisionFiltro !== 'Todos' ? comisionFiltro : undefined,
+            autorId: autorFiltro !== 'Todos' ? Number(autorFiltro) : undefined,
+            coautorId: coautorFiltro !== 'Todos' ? Number(coautorFiltro) : undefined,
+          },
+          baeInfo: baeMode === 'combine'
+            ? { mode: 'combine', selectedBaes }
+            : { mode: 'single', nroOrden: currentNro, anoParlamentario: currentAno },
+        },
+        (msg) => setExportMsg(msg),
+      );
+      setExportMsg('Exportación completada');
+      setTimeout(() => setExportMsg(''), 3000);
+    } catch (err: any) {
+      setExportMsg(err.message || 'Error al exportar');
+      setTimeout(() => setExportMsg(''), 5000);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const formatBaeDate = (dateStr: string | undefined) => {
@@ -938,7 +998,7 @@ export function BAE() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Results count */}
+        {/* Results count + Export */}
         {!loading && !error && (
           <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
             <span>
@@ -947,11 +1007,26 @@ export function BAE() {
                 ? ` en ${selectedBaes.length} BAE${selectedBaes.length !== 1 ? 's' : ''} combinados`
                 : ' en este BAE'}
             </span>
-            {totalPages > 1 && (
-              <span>
-                Página {currentPage} de {totalPages}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {exportMsg && (
+                <span className="text-xs text-violet-600 dark:text-violet-400 animate-pulse">{exportMsg}</span>
+              )}
+              {totalResultados > 0 && (
+                <button
+                  onClick={handleExport}
+                  disabled={exporting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Exportar Excel
+                </button>
+              )}
+              {totalPages > 1 && (
+                <span>
+                  Página {currentPage} de {totalPages}
+                </span>
+              )}
+            </div>
           </div>
         )}
 

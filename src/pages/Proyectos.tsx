@@ -5,12 +5,13 @@ import {
   Search, Filter, FileText,
   Tag, Users, X, Sparkles, Loader2,
   ChevronLeft, ChevronRight, Calendar, ChevronsLeft, ChevronsRight,
-  Hash,
+  Hash, Download,
 } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
 import Title from '../components/layout/Title';
 import Container from '../components/containers/Container';
 import { searchExpedientes, getBloques, getLegisladores, getComisiones, getDistinctAutores, getDistinctCoautores } from '../services/legislatura.service';
+import { exportExpedientesToExcel } from '../services/exportExcel';
 import type { Expediente, Bloque, Legislador, ComisionItem } from '../types/legislatura.types';
 
 const PAGE_SIZE = 10;
@@ -307,6 +308,9 @@ export function Proyectos() {
   const dateFromDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dateToDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState('');
+
   const totalPages = Math.max(1, Math.ceil(totalResultados / PAGE_SIZE));
 
   // Helper to update a single search param
@@ -523,6 +527,64 @@ export function Proyectos() {
   const handlePageChange = (page: number) => {
     setParam('page', String(page));
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportMsg('');
+    try {
+      const bloqueLabel = bloqueFiltro !== 'Todos'
+        ? bloques.find((b) => String(b.bloqueId) === bloqueFiltro)?.nombre || bloqueFiltro
+        : 'Todos';
+      const comisionLabel = comisionFiltro !== 'Todos'
+        ? comisionesList.find((c) => c.url === comisionFiltro)?.nombre || comisionFiltro
+        : 'Todos';
+      const autorLabel = autorFiltro !== 'Todos'
+        ? autoresList.find((a) => String(a.legisladorId) === autorFiltro)
+          ? `${autoresList.find((a) => String(a.legisladorId) === autorFiltro)!.apellido}, ${autoresList.find((a) => String(a.legisladorId) === autorFiltro)!.nombre}`
+          : autorFiltro
+        : 'Todos';
+      const coautorLabel = coautorFiltro !== 'Todos'
+        ? coautoresList.find((a) => String(a.legisladorId) === coautorFiltro)
+          ? `${coautoresList.find((a) => String(a.legisladorId) === coautorFiltro)!.apellido}, ${coautoresList.find((a) => String(a.legisladorId) === coautorFiltro)!.nombre}`
+          : coautorFiltro
+        : 'Todos';
+
+      await exportExpedientesToExcel(
+        {
+          source: 'proyectos',
+          filters: {
+            busqueda: busqueda || undefined,
+            categoria: categoriaFiltro,
+            comision: comisionLabel,
+            bloque: bloqueLabel,
+            autor: autorLabel,
+            coautor: coautorLabel,
+            searchMode,
+          },
+          filterIds: {
+            bloqueId: bloqueFiltro !== 'Todos' ? Number(bloqueFiltro) : undefined,
+            comisionUrl: comisionFiltro !== 'Todos' ? comisionFiltro : undefined,
+            autorId: autorFiltro !== 'Todos' ? Number(autorFiltro) : undefined,
+            coautorId: coautorFiltro !== 'Todos' ? Number(coautorFiltro) : undefined,
+          },
+          dateInfo: {
+            mode: dateMode as 'day' | 'range',
+            selectedDate: selectedDate,
+            dateFrom: dateFrom,
+            dateTo: dateTo,
+          },
+        },
+        (msg) => setExportMsg(msg),
+      );
+      setExportMsg('Exportación completada');
+      setTimeout(() => setExportMsg(''), 3000);
+    } catch (err: any) {
+      setExportMsg(err.message || 'Error al exportar');
+      setTimeout(() => setExportMsg(''), 5000);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -844,11 +906,26 @@ export function Proyectos() {
             <span>
               {totalResultados} proyecto{totalResultados !== 1 ? 's' : ''} encontrado{totalResultados !== 1 ? 's' : ''}
             </span>
-            {totalPages > 1 && (
-              <span>
-                Página {currentPage} de {totalPages}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {exportMsg && (
+                <span className="text-xs text-violet-600 dark:text-violet-400 animate-pulse">{exportMsg}</span>
+              )}
+              {totalResultados > 0 && (
+                <button
+                  onClick={handleExport}
+                  disabled={exporting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Exportar Excel
+                </button>
+              )}
+              {totalPages > 1 && (
+                <span>
+                  Página {currentPage} de {totalPages}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
