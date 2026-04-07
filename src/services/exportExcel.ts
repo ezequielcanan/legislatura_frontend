@@ -217,7 +217,7 @@ export async function exportExpedientesToExcel(
   ws.views = [{ state: 'frozen', ySplit: headerRowNum }];
 
   // ─── Column header row ────────────────────────
-  const headerRow = ws.addRow(['N° DE EXPTE', 'TITULO / SUMARIO', 'PARTIDO', 'SANCIONADO', 'AUTOR PRINCIPAL']);
+  const headerRow = ws.addRow(['N° DE EXPTE', 'TITULO / SUMARIO', 'PARTIDO', 'SANCIONADO', 'AUTOR']);
   headerRow.height = 36;
   headerRow.eachCell((cell) => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + COLOR.headerBg } };
