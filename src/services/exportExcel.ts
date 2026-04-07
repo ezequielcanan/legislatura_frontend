@@ -1,6 +1,5 @@
 import ExcelJS from 'exceljs';
-import type { Expediente } from '../types/legislatura.types';
-import { searchExpedientes, getBaeWithExpedientes, getCombinedBaesExpedientes, getExportData } from './legislatura.service';
+import { getExportDataWithFilters } from './legislatura.service';
 
 // ─── Color palette ───────────────────────────────
 const COLOR = {
@@ -67,10 +66,9 @@ export async function exportExpedientesToExcel(
 ): Promise<void> {
   const { source, filters, filterIds, baeInfo, dateInfo } = options;
 
-  onProgress?.('Obteniendo expedientes...');
+  onProgress?.('Obteniendo expedientes y datos de exportación...');
 
-  let allExpedientes: Expediente[] = [];
-  const MAX_EXPORT = 2000;
+  const MAX_EXPORT = 1999;
 
   const baseParams: Record<string, any> = { limit: MAX_EXPORT, skip: 0 };
   if (filters.busqueda) baseParams.query = filters.busqueda;
@@ -84,11 +82,10 @@ export async function exportExpedientesToExcel(
 
   if (source === 'bae' && baeInfo) {
     if (baeInfo.mode === 'combine' && baeInfo.selectedBaes && baeInfo.selectedBaes.length > 0) {
-      const result = await getCombinedBaesExpedientes(baeInfo.selectedBaes, baseParams);
-      allExpedientes = result.expedientes;
+      baseParams.baes = baeInfo.selectedBaes.map((b) => `${b.nroOrden}-${b.anoParlamentario}`).join(',');
     } else if (baeInfo.mode === 'single' && baeInfo.nroOrden && baeInfo.anoParlamentario) {
-      const result = await getBaeWithExpedientes(baeInfo.nroOrden, baeInfo.anoParlamentario, baseParams);
-      allExpedientes = result.expedientes;
+      baseParams.nroOrden = baeInfo.nroOrden;
+      baseParams.anoParlamentario = baeInfo.anoParlamentario;
     }
   } else {
     if (dateInfo?.mode === 'day' && dateInfo.selectedDate) {
@@ -98,17 +95,13 @@ export async function exportExpedientesToExcel(
       if (dateInfo.dateFrom) baseParams.dateFrom = dateInfo.dateFrom;
       if (dateInfo.dateTo) baseParams.dateTo = dateInfo.dateTo;
     }
-    const result = await searchExpedientes(baseParams);
-    allExpedientes = result.data;
   }
+
+  const { expedientes: allExpedientes, exportData } = await getExportDataWithFilters(baseParams);
 
   if (allExpedientes.length === 0) {
     throw new Error('No hay expedientes para exportar con los filtros actuales.');
   }
-
-  onProgress?.(`Consultando sanciones para ${allExpedientes.length} expedientes...`);
-  const expedienteIds = allExpedientes.map((e) => e.expedienteId);
-  const exportData = await getExportData(expedienteIds);
 
   onProgress?.('Generando Excel...');
 

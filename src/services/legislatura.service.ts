@@ -103,15 +103,15 @@ export async function resyncExpediente(id: number): Promise<Expediente> {
 
 // ─── Export Data (sanciones + bloques) ───────────
 
-export async function getExportData(
-  expedienteIds: number[],
-): Promise<Record<number, { sancionado: boolean; bloque: string }>> {
-  const ids = expedienteIds.join(',');
-  const { data } = await axiosInstance.get<ApiResponse<Record<number, { sancionado: boolean; bloque: string }>>>(
+export async function getExportDataWithFilters(
+  params: SearchExpedientesParams,
+): Promise<{ expedientes: Expediente[]; exportData: Record<number, { sancionado: boolean; bloque: string }>; total: number }> {
+  const { data } = await axiosInstance.post(
     '/legislatura/expedientes/export-data',
-    { params: { ids }, timeout: 120000 },
+    params,
+    { timeout: 120000 },
   );
-  return data.data;
+  return { expedientes: data.expedientes, exportData: data.exportData, total: data.total };
 }
 
 export async function getExpedienteSancion(
