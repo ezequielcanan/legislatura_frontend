@@ -117,6 +117,7 @@ export async function exportExpedientesToExcel(
   // ── Column widths ──────────────────────────────
   ws.columns = [
     { key: 'nro',        width: 22 },
+    { key: 'tipo',       width: 22 },
     { key: 'titulo',     width: 75 },
     { key: 'partido',    width: 32 },
     { key: 'sancionado', width: 15 },
@@ -124,7 +125,7 @@ export async function exportExpedientesToExcel(
   ];
 
   // ─── Helper: add a full-width merged info row ──
-  const NUM_COLS = 5;
+  const NUM_COLS = 6;
 
   function addInfoRow(text: string, opts: {
     bg: string;
@@ -217,7 +218,7 @@ export async function exportExpedientesToExcel(
   ws.views = [{ state: 'frozen', ySplit: headerRowNum }];
 
   // ─── Column header row ────────────────────────
-  const headerRow = ws.addRow(['N° DE EXPTE', 'TITULO / SUMARIO', 'PARTIDO', 'SANCIONADO', 'AUTOR']);
+  const headerRow = ws.addRow(['N° DE EXPTE', 'TIPO DE PROYECTO', 'TITULO / SUMARIO', 'PARTIDO', 'SANCIONADO', 'AUTOR']);
   headerRow.height = 36;
   headerRow.eachCell((cell) => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + COLOR.headerBg } };
@@ -239,8 +240,9 @@ export async function exportExpedientesToExcel(
       : '';
     const bloque = extra?.bloque || '';
     const sancionado = extra?.sancionado ? 'SI' : 'NO';
+    const tipo = exp.tipo || '';
 
-    const dataRow = ws.addRow([exp.numero, exp.sumario, bloque, sancionado, autor]);
+    const dataRow = ws.addRow([exp.numero, tipo, exp.sumario, bloque, sancionado, autor]);
     dataRow.height = 40;
 
     const isEven = idx % 2 === 1;
@@ -253,8 +255,8 @@ export async function exportExpedientesToExcel(
       cell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left' };
       applyBorder(cell);
 
-      // Special styling for SANCIONADO column (col 4)
-      if (colNumber === 4) {
+      // Special styling for SANCIONADO column (col 5)
+      if (colNumber === 5) {
         cell.alignment = { wrapText: false, vertical: 'middle', horizontal: 'center' };
         cell.font = {
           name: 'Calibri',
@@ -273,6 +275,12 @@ export async function exportExpedientesToExcel(
       if (colNumber === 1) {
         cell.alignment = { wrapText: false, vertical: 'middle', horizontal: 'center' };
         cell.font = { name: 'Consolas', size: 10 };
+      }
+
+      // TIPO DE PROYECTO: centered, bold
+      if (colNumber === 2) {
+        cell.alignment = { wrapText: true, vertical: 'middle', horizontal: 'center' };
+        cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF' + COLOR.infoFont } };
       }
     });
   });
