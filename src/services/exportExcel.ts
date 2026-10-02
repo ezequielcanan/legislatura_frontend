@@ -34,7 +34,7 @@ interface ExportOptions {
   /** Raw IDs for the API query (bloque ID, comision URL, legislador IDs) */
   filterIds?: {
     bloqueId?: number;
-    comisionUrl?: string;
+    idComision?: number;
     autorId?: number;
     coautorId?: number;
   };
@@ -73,7 +73,7 @@ export async function exportExpedientesToExcel(
   const baseParams: Record<string, any> = { limit: MAX_EXPORT, skip: 0 };
   if (filters.busqueda) baseParams.query = filters.busqueda;
   if (filters.categoria && filters.categoria !== 'Todos') baseParams.tipo = filters.categoria;
-  if (filterIds?.comisionUrl) baseParams.comisionUrl = filterIds.comisionUrl;
+  if (filterIds?.idComision) baseParams.idComision = filterIds.idComision;
   if (filterIds?.bloqueId) baseParams.bloqueId = filterIds.bloqueId;
   if (filterIds?.autorId) baseParams.autorId = filterIds.autorId;
   if (filterIds?.coautorId) baseParams.coautorId = filterIds.coautorId;

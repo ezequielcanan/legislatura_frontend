@@ -449,7 +449,7 @@ export function Proyectos() {
       try {
         const baseParams: Record<string, any> = {};
         if (categoriaFiltro !== 'Todos') baseParams.tipo = categoriaFiltro;
-        if (comisionFiltro !== 'Todos') baseParams.comisionUrl = comisionFiltro;
+        if (comisionFiltro !== 'Todos') baseParams.idComision = Number(comisionFiltro);
         if (bloqueFiltro !== 'Todos') baseParams.bloqueId = Number(bloqueFiltro);
         if (dateMode === 'day') {
           baseParams.dateFrom = selectedDate;
@@ -483,7 +483,7 @@ export function Proyectos() {
         const params: Record<string, any> = { limit: PAGE_SIZE };
         if (busqueda) params.query = busqueda;
         if (categoriaFiltro !== 'Todos') params.tipo = categoriaFiltro;
-        if (comisionFiltro !== 'Todos') params.comisionUrl = comisionFiltro;
+        if (comisionFiltro !== 'Todos') params.idComision = Number(comisionFiltro);
         if (bloqueFiltro !== 'Todos') params.bloqueId = Number(bloqueFiltro);
         if (autorFiltro !== 'Todos') params.autorId = Number(autorFiltro);
         if (coautorFiltro !== 'Todos') params.coautorId = Number(coautorFiltro);
@@ -564,7 +564,7 @@ export function Proyectos() {
           },
           filterIds: {
             bloqueId: bloqueFiltro !== 'Todos' ? Number(bloqueFiltro) : undefined,
-            comisionUrl: comisionFiltro !== 'Todos' ? comisionFiltro : undefined,
+            idComision: comisionFiltro !== 'Todos' ? Number(comisionFiltro) : undefined,
             autorId: autorFiltro !== 'Todos' ? Number(autorFiltro) : undefined,
             coautorId: coautorFiltro !== 'Todos' ? Number(coautorFiltro) : undefined,
           },
@@ -828,7 +828,7 @@ export function Proyectos() {
                       >
                         <option value="Todos">Todas las comisiones</option>
                         {comisionesList.map((c) => (
-                          <option key={c.idComision} value={c.url}>{c.nombre}</option>
+                          <option key={c.idComision} value={c.idComision}>{c.nombre}</option>
                         ))}
                       </select>
                     </div>

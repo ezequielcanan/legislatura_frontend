@@ -464,7 +464,7 @@ export function BAE() {
           anoParlamentario: currentAno,
         };
         if (categoriaFiltro !== 'Todos') baseParams.tipo = categoriaFiltro;
-        if (comisionFiltro !== 'Todos') baseParams.comisionUrl = comisionFiltro;
+        if (comisionFiltro !== 'Todos') baseParams.idComision = Number(comisionFiltro);
         if (bloqueFiltro !== 'Todos') baseParams.bloqueId = Number(bloqueFiltro);
 
         const [autoresData, coautoresData] = await Promise.all([
@@ -499,14 +499,14 @@ export function BAE() {
         const params: Record<string, any> = { limit: PAGE_SIZE };
         if (busqueda) params.query = busqueda;
         if (categoriaFiltro !== 'Todos') params.tipo = categoriaFiltro;
-        if (comisionFiltro !== 'Todos') params.comisionUrl = comisionFiltro;
+        if (comisionFiltro !== 'Todos') params.idComision = Number(comisionFiltro);
         if (bloqueFiltro !== 'Todos') params.bloqueId = Number(bloqueFiltro);
         if (autorFiltro !== 'Todos') params.autorId = Number(autorFiltro);
         if (coautorFiltro !== 'Todos') params.coautorId = Number(coautorFiltro);
         if (searchMode === 'exact') params.searchMode = 'exact';
         if (baeSourceOnly) params.baeSourceOnly = true;
         params.skip = (currentPage - 1) * PAGE_SIZE;
-
+        console.log(params)
         if (isCombineMode) {
           const result = await getCombinedBaesExpedientes(selectedBaes, params);
           if (!cancelled) {
@@ -591,7 +591,7 @@ export function BAE() {
           },
           filterIds: {
             bloqueId: bloqueFiltro !== 'Todos' ? Number(bloqueFiltro) : undefined,
-            comisionUrl: comisionFiltro !== 'Todos' ? comisionFiltro : undefined,
+            idComision: comisionFiltro !== 'Todos' ? Number(comisionFiltro) : undefined,
             autorId: autorFiltro !== 'Todos' ? Number(autorFiltro) : undefined,
             coautorId: coautorFiltro !== 'Todos' ? Number(coautorFiltro) : undefined,
           },
@@ -926,7 +926,7 @@ export function BAE() {
                       >
                         <option value="Todos">Todas las comisiones</option>
                         {comisionesList.map((c) => (
-                          <option key={c.idComision} value={c.url}>{c.nombre}</option>
+                          <option key={c.idComision} value={c.idComision}>{c.nombre}</option>
                         ))}
                       </select>
                     </div>
